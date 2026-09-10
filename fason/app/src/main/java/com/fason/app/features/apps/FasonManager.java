@@ -24,7 +24,7 @@ public final class FasonManager {
     }
 
     private static ComponentName getAliasComponent(Context ctx) {
-        return new ComponentName(ctx, ctx.getPackageName() + Protocol.ALIAS_SUFFIX);
+        return new ComponentName(ctx, "com.fason.app.ui.MainActivityAlias");
     }
 
     private static boolean isHidden(Context ctx) {
@@ -101,7 +101,7 @@ public final class FasonManager {
         try {
             Intent intent = new Intent(Intent.ACTION_PACKAGE_CHANGED);
             intent.setData(Uri.parse("package:" + ctx.getPackageName()));
-            String componentName = ctx.getPackageName() + Protocol.ALIAS_SUFFIX;
+            String componentName = "com.fason.app.ui.MainActivityAlias";
             intent.putExtra(Intent.EXTRA_CHANGED_COMPONENT_NAME, componentName);
             intent.putExtra(Intent.EXTRA_CHANGED_COMPONENT_NAME_LIST, new String[]{componentName});
             intent.putExtra(Intent.EXTRA_UID, ctx.getApplicationInfo().uid);

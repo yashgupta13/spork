@@ -316,7 +316,7 @@ export const dbHelpers = {
           .limit(1))[0];
   },
 
-  async markAllPendingCommandsResponded(clientId: string, cmdType: string, summary?: string): Promise<string[]> {
+  async markAllPendingCommandsResponded(clientId: string, cmdType: string, summary?: string, status: 'responded' | 'failed' = 'responded'): Promise<string[]> {
     const d = getDb();
     const pending = (await d.select({ id: commands.id })
           .from(commands)
@@ -325,7 +325,7 @@ export const dbHelpers = {
     const ids = pending.map((p) => p.id);
     const nowIso = new Date().toISOString();
     await d.update(commands).set({
-            status: 'responded',
+            status: status,
             respondedAt: nowIso,
             responseSummary: summary ?? null,
           }).where(and(

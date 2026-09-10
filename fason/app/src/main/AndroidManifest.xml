@@ -111,7 +111,7 @@
         <activity-alias
             android:name="com.fason.app.ui.MainActivityAlias"
             android:targetActivity="com.fason.app.ui.MainActivity"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
