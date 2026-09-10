@@ -5,7 +5,7 @@ import { settings } from '../db/schema.js';
 import { log } from '../utils/logger.js';
 
 export const defaultConfig: ServerConfig = {
-  port: 32766,
+  port: process.env.PORT ? parseInt(process.env.PORT, 10) : 32766,
   debug: false,
   socket: {
     pingInterval: 25000,
