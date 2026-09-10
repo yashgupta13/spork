@@ -46,7 +46,7 @@ async function plugins(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'Self-registration is disabled. Ask an admin to create your account.' });
     }
 
-    const auth = getAuth();
+    const auth = await getAuth();
     const handler = toNodeHandler(auth.handler);
     await handler(req.raw, reply.raw);
     reply.hijack();

@@ -42,12 +42,13 @@ async function persistSetting(key: string, value: string): Promise<void> {
         .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date().toISOString() } });
 }
 
+// Fix #8: setupGuard must await isSetupComplete() since it is async
 export async function setupGuard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const url = request.url.split('?')[0];
   if (url.startsWith('/api/setup') || url === '/api/health' || url.startsWith('/api/auth/better')) {
     return;
   }
-  if (url.startsWith('/api/') && !isSetupComplete()) {
+  if (url.startsWith('/api/') && !(await isSetupComplete())) {
     reply.code(503).send({
       success: false,
       error: 'Setup required',
@@ -59,9 +60,10 @@ export async function setupGuard(request: FastifyRequest, reply: FastifyReply): 
 let setupInProgress = false;
 
 export async function setupRoutes(app: FastifyInstance) {
+  // Fix #9: await both async calls in status endpoint
   app.get('/api/setup/status', async () => {
-    const steps = checkSetupSteps();
-    const complete = isSetupComplete() || Object.values(steps).every(Boolean);
+    const steps = await checkSetupSteps();
+    const complete = (await isSetupComplete()) || Object.values(steps).every(Boolean);
     return { success: true, data: { complete, steps } };
   });
 
@@ -123,7 +125,7 @@ export async function setupRoutes(app: FastifyInstance) {
       return reply.code(409).send({ success: false, error: 'This username is already taken' });
     }
     try {
-      const auth = getAuth();
+      const auth = await getAuth();
       const signUpRes: any = await auth.api.signUpEmail({
         body: {
           email: email.toLowerCase(),
@@ -143,14 +145,16 @@ export async function setupRoutes(app: FastifyInstance) {
                 deviceSecret: finalDeviceSecret,
                 updatedAt: new Date(),
               }).where(eq(userTable.id, userId));
-      (await dbHelpers.invalidateDeviceSecretsCache());
+      // invalidateDeviceSecretsCache is synchronous — no await needed
+      dbHelpers.invalidateDeviceSecretsCache();
     } catch (err) {
       log.error(`Setup failed: ${err instanceof Error ? err.message : String(err)}`);
       return reply.code(500).send({ success: false, error: 'Failed to create admin account' });
     }
-    persistSetting(SETUP_COMPLETE_KEY, '1');
-    persistSetting('seed.defaultAdmin.done', '1');
-    (await dbHelpers.addLog('SYSTEM', 'SETUP', 'Initial setup completed via setup wizard'));
+    // Fix #10: await persistSetting so setup completion is durably written before responding
+    await persistSetting(SETUP_COMPLETE_KEY, '1');
+    await persistSetting('seed.defaultAdmin.done', '1');
+    await dbHelpers.addLog('SYSTEM', 'SETUP', 'Initial setup completed via setup wizard');
     return {
       success: true,
       data: {

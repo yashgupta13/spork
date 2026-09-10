@@ -248,7 +248,7 @@ export async function deviceRoutes(app: FastifyInstance) {
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
-    const result = socketService.send(id, cmdType, params);
+    const result = await socketService.send(id, cmdType, params);
     return { success: true, sent: result.sent, queued: !result.sent, commandId: result.commandId };
   });
 

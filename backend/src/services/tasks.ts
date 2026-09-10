@@ -45,8 +45,9 @@ class TaskManager {
 export const taskManager = new TaskManager();
 taskManager.register('cleanup', 3600000, async () => {
   try {
-    const deleted = socketService.cleanupStaleClients();
-    if ((await deleted) > 0) log.info(`Cleaned ${await deleted} stale clients`);
+    // Fix #4: await the async cleanupStaleClients()
+    const deleted = await socketService.cleanupStaleClients();
+    if (deleted > 0) log.info(`Cleaned ${deleted} stale clients`);
   } catch (err: unknown) { log.error(`cleanup stale: ${err instanceof Error ? err.message : String(err)}`); }
   try {
     const sessions = (await dbHelpers.cleanExpiredSessions());

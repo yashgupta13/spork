@@ -37,14 +37,14 @@ export function getDb(): DB {
 export function initDb(): DB {
   const rawUrl = process.env.POSTGRES_URL || '';
   const safeUrl = rawUrl.split('?')[0];
-  
+
   const pool = new Pool({
     connectionString: safeUrl,
     ssl: { rejectUnauthorized: false },
   });
 
-  // Test connection
-  pool.query('SELECT NOW()', (err, res) => {
+  // Test connection — log errors but don't block startup
+  pool.query('SELECT NOW()', (err: Error | null, _res: any) => {
     if (err) {
       console.error('Database connection error:', err.stack);
     } else {
@@ -136,7 +136,8 @@ export const dbHelpers = {
     const d = getDb();
     const now = new Date();
     const result = await d.delete(session).where(lt(session.expiresAt, now));
-    return result.rowCount;
+    // Fix #6: rowCount can be null in node-postgres
+    return result.rowCount ?? 0;
   },
 
   async checkLoginAttempts(ip: string, maxAttempts: number, windowMs: number, identifier?: string): Promise<boolean> {
@@ -159,7 +160,8 @@ export const dbHelpers = {
     const d = getDb();
     const cutoff = new Date(Date.now() - olderThanMs).toISOString();
     const result = await d.delete(loginAttempts).where(lt(loginAttempts.attemptedAt, cutoff));
-    return result.rowCount;
+    // Fix #6: rowCount can be null
+    return result.rowCount ?? 0;
   },
 
   async getOrCreateJwtSecret(): Promise<string> {
@@ -221,16 +223,15 @@ export const dbHelpers = {
   async updateUser(id: string, data: { username?: string; email?: string; role?: 'admin' | 'user'; permissions?: string; isDefault?: number; lastLogin?: Date }): Promise<boolean> {
     const d = getDb();
     const updates: Record<string, unknown> = { ...data, updatedAt: new Date() };
-
     const result = await d.update(user).set(updates as any).where(eq(user.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   },
 
   async updateUserPassword(userId: string, passwordHash: string): Promise<boolean> {
     const d = getDb();
     const result = await d.update(account).set({ password: passwordHash, updatedAt: new Date() })
           .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   },
 
   async deleteUser(id: string): Promise<string[]> {
@@ -281,14 +282,15 @@ export const dbHelpers = {
   async deleteSessionById(sessionId: string): Promise<boolean> {
     const d = getDb();
     const result = await d.delete(session).where(eq(session.id, sessionId));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   },
 
   async deleteOtherSessions(userId: string, keepToken: string): Promise<number> {
     const d = getDb();
     const result = await d.delete(session)
           .where(and(eq(session.userId, userId), ne(session.token, keepToken)));
-    return result.rowCount;
+    // Fix #6: rowCount can be null
+    return result.rowCount ?? 0;
   },
 
   async createCommand(id: string, clientId: string, cmdType: string, params: string): Promise<void> {
@@ -342,26 +344,27 @@ export const dbHelpers = {
           respondedAt: nowIso,
           responseSummary: summary ?? null,
         }).where(eq(commands.id, commandId));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   },
 
   async cleanOldCommands(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<number> {
     const d = getDb();
     const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
     const result = await d.delete(commands).where(lt(commands.sentAt, cutoff));
-    return result.rowCount;
+    // Fix #6: rowCount can be null
+    return result.rowCount ?? 0;
   },
 
   async assignDevice(clientId: string, ownerId: string): Promise<boolean> {
     const d = getDb();
     const result = await d.update(clients).set({ ownerId }).where(eq(clients.id, clientId));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   },
 
   async unassignDevice(clientId: string): Promise<boolean> {
     const d = getDb();
     const result = await d.update(clients).set({ ownerId: null }).where(eq(clients.id, clientId));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   },
 
   async getDeviceOwnerId(clientId: string): Promise<string | null> {
@@ -395,6 +398,7 @@ export const dbHelpers = {
     return rows;
   },
 
+  // This is intentionally synchronous — just clears a Map
   invalidateDeviceSecretsCache(): void {
     deviceSecretsCache = null;
   },

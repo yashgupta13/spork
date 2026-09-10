@@ -49,7 +49,7 @@ export async function seedDefaultUser(): Promise<void> {
     const username = process.env.ADMIN_USERNAME?.trim() || DEFAULT_ADMIN_USERNAME;
     const email = process.env.ADMIN_EMAIL?.trim() || DEFAULT_ADMIN_EMAIL;
     try {
-      const auth = getAuth();
+      const auth = await getAuth();
       const signUpRes: any = await auth.api.signUpEmail({
         body: {
           email,

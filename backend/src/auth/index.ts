@@ -27,7 +27,8 @@ async function readOrCreateSecret(): Promise<string> {
   }
 }
 
-export async function buildAuth(): any {
+// Fix #1: correct async return type Promise<any>
+export async function buildAuth(): Promise<any> {
   const config = getConfig();
   const db = getDb();
   return betterAuth({
@@ -110,11 +111,20 @@ export async function buildAuth(): any {
   });
 }
 
+// Fix #5: authInstance stores the actual resolved auth object, not a Promise.
+// getAuth() is async so callers must await it.
 let authInstance: any = null;
+let authInitPromise: Promise<any> | null = null;
 
-export function getAuth(): any {
-  if (!authInstance) {
-    authInstance = buildAuth();
+export async function getAuth(): Promise<any> {
+  if (authInstance) return authInstance;
+  // Prevent concurrent initializations
+  if (!authInitPromise) {
+    authInitPromise = buildAuth().then(inst => {
+      authInstance = inst;
+      authInitPromise = null;
+      return inst;
+    });
   }
-  return authInstance;
+  return authInitPromise;
 }

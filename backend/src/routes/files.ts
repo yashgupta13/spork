@@ -156,7 +156,7 @@ export async function fileRoutes(app: FastifyInstance) {
       return reply.code(413).send({ success: false, error: `File too large for device push (${(fileBuffer.length / 1024 / 1024).toFixed(1)}MB). Maximum is 10MB.` });
     }
     const base64Data = fileBuffer.toString('base64');
-    const result = socketService.send(clientId, CMD.FILES, {
+    const result = await socketService.send(clientId, CMD.FILES, {
       action: 'push',
       path: dstPath,
       name: fileName,

@@ -14,7 +14,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
         headers = { ...request.headers, authorization: `Bearer ${cookieToken}` };
       }
     }
-    const session = await getAuth().api.getSession({ headers });
+    const session = await (await getAuth()).api.getSession({ headers });
     if (!session || !session.user) {
       reply.code(401).send({ success: false, error: 'Authentication required' });
       return;
@@ -77,7 +77,7 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
   try {
     const headers = new Headers();
     headers.set('authorization', `Bearer ${token}`);
-    const session = await getAuth().api.getSession({ headers });
+    const session = await (await getAuth()).api.getSession({ headers });
     if (!session || !session.user) return null;
     const dbUser = (await dbHelpers.getUserById(session.user.id));
     if (!dbUser) return null;

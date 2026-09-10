@@ -201,7 +201,8 @@ class SocketService {
 
   private async completeTransfer(id: string, transfer: TransferChunk, fileType: string, dataType: string): Promise<void> {
     const buffer = Buffer.concat(Array.from(transfer.chunks.entries()).sort(([a], [b]) => a - b).map(([, chunk]) => chunk));
-    this.saveFileToDb(id, fileType, buffer, transfer.name);
+    // Fix #13: await saveFileToDb so file write errors surface
+    await this.saveFileToDb(id, fileType, buffer, transfer.name);
     (await dbHelpers.addLog('DATA', dataType, `${dataType} (chunked) from ${id}`, JSON.stringify({ size: buffer.length, name: transfer.name })));
     this.transfers.delete(`${id}:${transfer.transferId}`);
     const dataTypeLower = dataType.toLowerCase();
@@ -946,7 +947,8 @@ class SocketService {
       (await dbHelpers.addLog('COMMAND', 'SOCKET', `Command ${cmd} sent to ${clientId}`, logStr.length > 1000 ? logStr.substring(0, 1000) + '...' : logStr));
       return { sent: true, commandId };
     } else {
-      this.queueCommand(clientId, cmd, params, commandId);
+      // Fix #12: await queueCommand so failures aren't silently dropped
+      await this.queueCommand(clientId, cmd, params, commandId);
       const { type: _t2, cmdId: _c2, timestamp: _ts2, ...safeParams2 } = params;
       const queueLogStr = JSON.stringify({ commandId, ...safeParams2 });
       (await dbHelpers.addLog('COMMAND', 'QUEUE', `Command ${cmd} queued for ${clientId}`, queueLogStr.length > 1000 ? queueLogStr.substring(0, 1000) + '...' : queueLogStr));
@@ -1064,7 +1066,8 @@ class SocketService {
     const d = getDb();
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const result = await d.delete(clients).where(and(eq(clients.online, false), lt(clients.lastSeen, cutoff)));
-    return result.rowCount;
+    // Fix #7: rowCount can be null in node-postgres
+    return result.rowCount ?? 0;
   }
 
   async disconnectClient(clientId: string): Promise<void> {

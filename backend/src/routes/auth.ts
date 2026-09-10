@@ -52,7 +52,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
     let signInRes: any = null;
     try {
-      signInRes = await getAuth().api.signInEmail({
+      signInRes = await (await getAuth()).api.signInEmail({
         body: { email: dbUser.email, password },
         headers: request.headers,
       } as any);
