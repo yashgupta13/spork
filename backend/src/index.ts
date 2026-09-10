@@ -43,10 +43,10 @@ function getLanIp(): string {
 
 async function main() {
   const config = getConfig();
-  ensureDataDir();
-  initDb();
-  loadPersistedSettings();
-  await getAuth();
+  ensureDataDir();      // non-fatal on read-only filesystems (Vercel) — see paths.ts
+  initDb();             // initialise Postgres pool
+  await loadPersistedSettings(); // load config from DB
+  await getAuth();      // build & cache the auth instance
   await seedDefaultUser();
   const trustProxyEnv = (process.env.FASON_TRUST_PROXY ?? '').trim();
   const trustProxy = trustProxyEnv === '' ? 'loopback'

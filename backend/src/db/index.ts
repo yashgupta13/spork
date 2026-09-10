@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq, and, desc, sql, count, lt, gt, inArray, or, ne } from 'drizzle-orm';
 import * as schema from './schema.js';
-import { paths, ensureDataDir } from '../config/paths.js';
+
 import { log } from '../utils/logger.js';
 import {
   user,
