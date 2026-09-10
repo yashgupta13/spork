@@ -6,7 +6,7 @@ import { promisify } from 'util';
 import type { FastifyInstance } from 'fastify';
 import AdmZip from 'adm-zip';
 import sharp from 'sharp';
-import { getDb, getSqliteDb, dbHelpers } from '../db/index.js';
+import { getDb, dbHelpers } from '../db/index.js';
 import { buildRecords } from '../db/schema.js';
 import { paths, ensureDataDir, createBuildDir } from '../config/paths.js';
 import { getConfig } from '../config/index.js';
@@ -136,17 +136,17 @@ async function buildApkAsync(serverUrl: string, homePageUrl: string, appName: st
     const fileSize = apkData.length;
     log.info(`Builder: APK signed (${(fileSize / 1024 / 1024).toFixed(2)} MB), storing...`);
     const d = getDb();
-    getSqliteDb().transaction(() => {
-      d.delete(buildRecords).where(eq(buildRecords.userId, builderUser.userId)).run();
-      d.insert(buildRecords).values({
+    await d.transaction(async (tx) => {
+      await tx.delete(buildRecords).where(eq(buildRecords.userId, builderUser.userId));
+      await tx.insert(buildRecords).values({
         userId: builderUser.userId,
         serverUrl, homePageUrl, appName,
         status: 'completed',
         apkData,
         fileSize,
         completedAt: new Date().toISOString(),
-      }).run();
-    })();
+      });
+    });
 try { if (fs.existsSync(buildDir)) fs.rmSync(buildDir, { recursive: true, force: true }); } catch {
 }
     buildDir = null;

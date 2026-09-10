@@ -14,11 +14,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://192.168.1.14:32766',
+        target: 'https://spork-backend.vercel.app/',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://192.168.1.14:32766',
+        target: 'https://spork-backend.vercel.app/',
         ws: true,
       },
     },

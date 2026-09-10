@@ -1,5 +1,5 @@
 import { socketService } from './socket.js';
-import { dbHelpers, getDb, getSqliteDb } from '../db/index.js';
+import { dbHelpers, getDb } from '../db/index.js';
 import { clients } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { getConfig } from '../config/index.js';
@@ -82,8 +82,9 @@ taskManager.register('transferCleanup', 300000, () => {
 
 taskManager.register('dbMaintenance', 3600000, () => {
   try {
-    const d = getSqliteDb();
-    d.pragma('optimize');
-    log.info('DB maintenance done');
+    const d = getDb();
+    // Note: PostgreSQL optimization would be different - VACUUM or ANALYZE
+    // For now, we'll skip SQLite-specific pragma optimize
+    log.info('DB maintenance scheduled (PostgreSQL optimization handled differently)');
   } catch (err: unknown) { log.error(`DB maintenance: ${err instanceof Error ? err.message : String(err)}`); }
 });

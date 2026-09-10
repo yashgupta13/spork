@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { hashPassword } from 'better-auth/crypto';
 import { requirePermission, getRequestUser } from '../middleware/auth.js';
-import { getDb, dbHelpers, getSqliteDb } from '../db/index.js';
+import { getDb, dbHelpers } from '../db/index.js';
 import { user as userTable, account as accountTable, session as sessionTable } from '../db/schema.js';
 import { sql, eq, and, ne } from 'drizzle-orm';
 import { validateUsername, validatePasswordStrength, validateEmail } from '../utils/helpers.js';
@@ -106,8 +106,8 @@ export async function userRoutes(app: FastifyInstance) {
     const deviceSecret = crypto.randomBytes(24).toString('base64url');
     const now = new Date();
     try {
-      getSqliteDb().transaction(() => {
-        d.insert(userTable).values({
+      await d.transaction(async (tx) => {
+        await tx.insert(userTable).values({
           id: userId,
           email: email.toLowerCase(),
           emailVerified: false,
@@ -119,15 +119,15 @@ export async function userRoutes(app: FastifyInstance) {
           deviceSecret,
           createdAt: now,
           updatedAt: now,
-        }).run();
-        d.insert(accountTable).values({
+        });
+        await tx.insert(accountTable).values({
           id: crypto.randomUUID(),
           providerId: 'credential',
           accountId: userId,
           userId,
           password: passwordHash,
-        }).run();
-      })();
+        });
+      });
     } catch (err: any) {
       return reply.code(500).send({ success: false, error: `Failed to create user: ${err.message}` });
     }
