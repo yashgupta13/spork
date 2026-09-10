@@ -14,12 +14,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://spork-backend.vercel.app',
+        target: 'https://spork-w9fw.onrender.com',
         changeOrigin: true,
         secure: false,
       },
       '/socket.io': {
-        target: 'https://spork-backend.vercel.app',
+        target: 'https://spork-w9fw.onrender.com',
+        ws: true,
         changeOrigin: true,
         secure: false,
       },

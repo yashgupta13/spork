@@ -24,7 +24,7 @@ const STEP_LABELS: Record<BuildStep, string> = {
 const MAX_APP_NAME_LENGTH = 50;
 
 export default function BuilderPage() {
-  const [serverUrl, setServerUrl] = useState('https://spork-backend.vercel.app/');
+  const [serverUrl, setServerUrl] = useState('https://spork-w9fw.onrender.com');
   const [detecting, setDetecting] = useState(true);
   const [alternatives, setAlternatives] = useState<string[]>([]);
   const [showServerUrl, setShowServerUrl] = useState(true);
