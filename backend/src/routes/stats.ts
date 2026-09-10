@@ -12,13 +12,13 @@ export async function statsRoutes(app: FastifyInstance) {
     const d = getDb();
     const ownerFilter = user.role === 'admin' ? undefined : eq(clients.ownerId, user.userId);
     const isAdmin = user.role === 'admin';
-    const onlineClients = (d.select({ count: count() }).from(clients)
-      .where(ownerFilter ? and(eq(clients.online, true), ownerFilter) : eq(clients.online, true)).get())?.count ?? 0;
-    const offlineClients = (d.select({ count: count() }).from(clients)
-      .where(ownerFilter ? and(eq(clients.online, false), ownerFilter) : eq(clients.online, false)).get())?.count ?? 0;
-    const totalLogs = isAdmin ? ((d.select({ count: count() }).from(logs).get())?.count ?? 0) : undefined;
+    const onlineClients = ((await d.select({ count: count() }).from(clients)
+          .where(ownerFilter ? and(eq(clients.online, true), ownerFilter) : eq(clients.online, true)).limit(1))[0])?.count ?? 0;
+    const offlineClients = ((await d.select({ count: count() }).from(clients)
+          .where(ownerFilter ? and(eq(clients.online, false), ownerFilter) : eq(clients.online, false)).limit(1))[0])?.count ?? 0;
+    const totalLogs = isAdmin ? (((await d.select({ count: count() }).from(logs).limit(1))[0])?.count ?? 0) : undefined;
     const todayStart = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
-    const todayLogs = isAdmin ? ((d.select({ count: count() }).from(logs).where(gte(logs.createdAt, todayStart)).get())?.count ?? 0) : undefined;
+    const todayLogs = isAdmin ? (((await d.select({ count: count() }).from(logs).where(gte(logs.createdAt, todayStart)).limit(1))[0])?.count ?? 0) : undefined;
     const memoryUsage = process.memoryUsage();
     return {
       success: true,

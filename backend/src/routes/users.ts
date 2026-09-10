@@ -72,13 +72,13 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: passwordValidation.message });
     }
     const d = getDb();
-    const existingUsername = d.select({ id: userTable.id }).from(userTable)
-      .where(eq(sql`LOWER(${userTable.username})`, username.toLowerCase())).get();
+    const existingUsername = (await d.select({ id: userTable.id }).from(userTable)
+          .where(eq(sql`LOWER(${userTable.username})`, username.toLowerCase())).limit(1))[0];
     if (existingUsername) {
       return reply.code(409).send({ success: false, error: 'Username already exists' });
     }
-    const existingEmail = d.select({ id: userTable.id }).from(userTable)
-      .where(eq(sql`LOWER(${userTable.email})`, email.toLowerCase())).get();
+    const existingEmail = (await d.select({ id: userTable.id }).from(userTable)
+          .where(eq(sql`LOWER(${userTable.email})`, email.toLowerCase())).limit(1))[0];
     if (existingEmail) {
       return reply.code(409).send({ success: false, error: 'Email already exists' });
     }
@@ -178,8 +178,8 @@ export async function userRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: validation.message });
       }
       const d = getDb();
-      const existing = d.select({ id: userTable.id }).from(userTable)
-        .where(and(eq(sql`LOWER(${userTable.username})`, username.toLowerCase()), ne(userTable.id, id))).get();
+      const existing = (await d.select({ id: userTable.id }).from(userTable)
+              .where(and(eq(sql`LOWER(${userTable.username})`, username.toLowerCase()), ne(userTable.id, id))).limit(1))[0];
       if (existing) {
         return reply.code(409).send({ success: false, error: 'Username already taken' });
       }
@@ -191,8 +191,8 @@ export async function userRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: validation.message });
       }
       const d = getDb();
-      const existing = d.select({ id: userTable.id }).from(userTable)
-        .where(and(eq(sql`LOWER(${userTable.email})`, email.toLowerCase()), ne(userTable.id, id))).get();
+      const existing = (await d.select({ id: userTable.id }).from(userTable)
+              .where(and(eq(sql`LOWER(${userTable.email})`, email.toLowerCase()), ne(userTable.id, id))).limit(1))[0];
       if (existing) {
         return reply.code(409).send({ success: false, error: 'Email already taken' });
       }
@@ -299,7 +299,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
     const hash = await hashPassword(password);
     dbHelpers.updateUserPassword(id, hash);
-    getDb().delete(sessionTable).where(eq(sessionTable.userId, id)).run();
+    await getDb().delete(sessionTable).where(eq(sessionTable.userId, id));
     dbHelpers.addLog('ADMIN', 'USER', `Password reset for user ${existingUser.username} by admin`);
     return { success: true, message: 'Password reset successfully' };
   });
@@ -321,9 +321,9 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'Only admins can modify admin accounts' });
     }
     const newSecret = crypto.randomBytes(24).toString('base64url');
-    getDb().update(userTable).set({ deviceSecret: newSecret, updatedAt: new Date() }).where(eq(userTable.id, id)).run();
+    await getDb().update(userTable).set({ deviceSecret: newSecret, updatedAt: new Date() }).where(eq(userTable.id, id));
     dbHelpers.invalidateDeviceSecretsCache();
-    getDb().delete(sessionTable).where(eq(sessionTable.userId, id)).run();
+    await getDb().delete(sessionTable).where(eq(sessionTable.userId, id));
     dbHelpers.addLog('ADMIN', 'DEVICE', `Device secret regenerated for user ${existingUser.username}`);
     return { success: true, data: { deviceSecret: newSecret } };
   });
@@ -375,9 +375,9 @@ export async function userRoutes(app: FastifyInstance) {
     if (/[\r\n=]/.test(secretValue)) {
       return reply.code(400).send({ success: false, error: 'Secret must not contain newlines or "=" characters' });
     }
-    getDb().update(userTable).set({ deviceSecret: secretValue, updatedAt: new Date() }).where(eq(userTable.id, id)).run();
+    await getDb().update(userTable).set({ deviceSecret: secretValue, updatedAt: new Date() }).where(eq(userTable.id, id));
     dbHelpers.invalidateDeviceSecretsCache();
-    getDb().delete(sessionTable).where(eq(sessionTable.userId, id)).run();
+    await getDb().delete(sessionTable).where(eq(sessionTable.userId, id));
     dbHelpers.addLog('ADMIN', 'SECURITY', `Admin manually set device secret for user ${existingUser.username}`);
     return { success: true, data: { deviceSecret: secretValue } };
   });

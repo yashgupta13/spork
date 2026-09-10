@@ -107,10 +107,10 @@ async function main() {
   await app.listen({ port, host });
   socketService.initialize(app.server, app);
   taskManager.startAll();
-  const setupDone = (() => {
+  const setupDone = await (async () => {
     try {
       const d = getDb();
-      const row = d.select({ value: settings.value }).from(settings).where(eq(settings.key, 'setup.complete')).get();
+      const row = (await d.select({ value: settings.value }).from(settings).where(eq(settings.key, 'setup.complete')).limit(1))[0];
       return row?.value === '1';
     } catch { return false; }
   })();

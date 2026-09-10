@@ -42,7 +42,7 @@ async function plugins(app: FastifyInstance) {
   app.all('/api/auth/better/*', async (req, reply) => {
     const url = req.url.split('?')[0];
     const isSignUpEndpoint = url.includes('/sign-up/') || url.includes('/signup/');
-    if (isSignUpEndpoint && isSetupComplete()) {
+    if (isSignUpEndpoint && await isSetupComplete()) {
       return reply.code(403).send({ success: false, error: 'Self-registration is disabled. Ask an admin to create your account.' });
     }
 

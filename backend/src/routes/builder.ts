@@ -423,10 +423,9 @@ export async function builderRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const builderUser = getRequestUser(request);
     const d = getDb();
-    const record = d.select({ id: buildRecords.id, appName: buildRecords.appName, apkData: buildRecords.apkData, fileSize: buildRecords.fileSize })
-      .from(buildRecords)
-      .where(and(eq(buildRecords.status, 'completed'), eq(buildRecords.userId, builderUser.userId)))
-      .get();
+    const record = (await d.select({ id: buildRecords.id, appName: buildRecords.appName, apkData: buildRecords.apkData, fileSize: buildRecords.fileSize })
+          .from(buildRecords)
+          .where(and(eq(buildRecords.status, 'completed'), eq(buildRecords.userId, builderUser.userId))).limit(1))[0];
     if (!record?.apkData) {
       return reply.code(404).send({ success: false, error: 'No APK built yet' });
     }

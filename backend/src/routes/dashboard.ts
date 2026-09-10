@@ -15,15 +15,15 @@ export async function dashboardRoutes(app: FastifyInstance) {
     const ownerFilter = user.role === 'admin'
       ? undefined
       : eq(clients.ownerId, user.userId);
-    const onlineClients = d.select().from(clients)
-      .where(ownerFilter ? and(eq(clients.online, true), ownerFilter) : eq(clients.online, true))
-      .orderBy(desc(clients.lastSeen)).all();
-    const offlineClients = d.select().from(clients)
-      .where(ownerFilter ? and(eq(clients.online, false), ownerFilter) : eq(clients.online, false))
-      .orderBy(desc(clients.lastSeen)).all();
-    const totalLogsResult = d.select({ count: count() }).from(logs).get();
+    const onlineClients = (await d.select().from(clients)
+          .where(ownerFilter ? and(eq(clients.online, true), ownerFilter) : eq(clients.online, true))
+          .orderBy(desc(clients.lastSeen)));
+    const offlineClients = (await d.select().from(clients)
+          .where(ownerFilter ? and(eq(clients.online, false), ownerFilter) : eq(clients.online, false))
+          .orderBy(desc(clients.lastSeen)));
+    const totalLogsResult = (await d.select({ count: count() }).from(logs).limit(1))[0];
     const todayStart = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
-    const todayLogsResult = d.select({ count: count() }).from(logs).where(gte(logs.createdAt, todayStart)).get();
+    const todayLogsResult = (await d.select({ count: count() }).from(logs).where(gte(logs.createdAt, todayStart)).limit(1))[0];
     const memoryUsage = process.memoryUsage();
     const uptime = process.uptime();
     const isAdmin = user.role === 'admin';
@@ -38,8 +38,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
           offlineClients: offlineClients.length,
           totalLogs: isAdmin ? (totalLogsResult?.count ?? 0) : undefined,
           todayLogs: isAdmin ? (todayLogsResult?.count ?? 0) : undefined,
-          totalUsers: isAdmin ? (d.select({ count: count() }).from(userTable).get()?.count ?? 0) : undefined,
-          totalAdmins: isAdmin ? (d.select({ count: count() }).from(userTable).where(eq(userTable.role, 'admin')).get()?.count ?? 0) : undefined,
+          totalUsers: isAdmin ? ((await d.select({ count: count() }).from(userTable).limit(1))[0]?.count ?? 0) : undefined,
+          totalAdmins: isAdmin ? ((await d.select({ count: count() }).from(userTable).where(eq(userTable.role, 'admin')).limit(1))[0]?.count ?? 0) : undefined,
           uptime: Math.floor(uptime),
           memoryUsage: Math.round(memoryUsage.heapUsed / 1024 / 1024),
         },

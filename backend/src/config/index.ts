@@ -76,10 +76,10 @@ export function updateConfig(key: string, value: unknown): void {
   obj[keys[keys.length - 1]] = value;
 }
 
-export function loadPersistedSettings(): void {
+export async function loadPersistedSettings(): Promise<void> {
   try {
     const d = getDb();
-    const allSettings = d.select().from(settings).all();
+    const allSettings = (await d.select().from(settings));
     const rootKeys = new Set(Object.keys(runtimeConfig));
     for (const setting of allSettings) {
       const topSegment = setting.key.split('.')[0];

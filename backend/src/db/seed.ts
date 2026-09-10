@@ -30,18 +30,18 @@ export const verifyPasswordScrypt = (password: string, hash: string) => verifyPa
 
 export async function seedDefaultUser(): Promise<void> {
   const d = getDb();
-  const setupComplete = d.select({ value: settings.value }).from(settings).where(eq(settings.key, SETUP_COMPLETE_KEY)).get();
+  const setupComplete = (await d.select({ value: settings.value }).from(settings).where(eq(settings.key, SETUP_COMPLETE_KEY)).limit(1))[0];
   if (setupComplete?.value === '1') {
     return;
   }
-  const seedFlag = d.select({ value: settings.value }).from(settings).where(eq(settings.key, SEED_FLAG_KEY)).get();
+  const seedFlag = (await d.select({ value: settings.value }).from(settings).where(eq(settings.key, SEED_FLAG_KEY)).limit(1))[0];
   if (seedFlag?.value === '1') {
     return;
   }
-  const existing = d.select({ id: userTable.id }).from(userTable).where(eq(userTable.isDefault, 1)).get();
+  const existing = (await d.select({ id: userTable.id }).from(userTable).where(eq(userTable.isDefault, 1)).limit(1))[0];
   if (existing) {
-    d.insert(settings).values({ key: SEED_FLAG_KEY, value: '1' })
-      .onConflictDoUpdate({ target: settings.key, set: { value: '1' } }).run();
+    await d.insert(settings).values({ key: SEED_FLAG_KEY, value: '1' })
+            .onConflictDoUpdate({ target: settings.key, set: { value: '1' } });
     return;
   }
   if (process.env.ADMIN_PASSWORD?.trim()) {
@@ -62,16 +62,16 @@ export async function seedDefaultUser(): Promise<void> {
       if (!userId) {
         throw new Error('Better Auth signUpEmail did not return a user id');
       }
-      d.update(userTable).set({
-        role: 'admin',
-        isDefault: 1,
-        permissions: JSON.stringify(ALL_PERMISSIONS),
-        updatedAt: new Date(),
-      }).where(eq(userTable.id, userId)).run();
-      d.insert(settings).values({ key: SEED_FLAG_KEY, value: '1' })
-        .onConflictDoUpdate({ target: settings.key, set: { value: '1' } }).run();
-      d.insert(settings).values({ key: SETUP_COMPLETE_KEY, value: '1' })
-        .onConflictDoUpdate({ target: settings.key, set: { value: '1' } }).run();
+      await d.update(userTable).set({
+                role: 'admin',
+                isDefault: 1,
+                permissions: JSON.stringify(ALL_PERMISSIONS),
+                updatedAt: new Date(),
+              }).where(eq(userTable.id, userId));
+      await d.insert(settings).values({ key: SEED_FLAG_KEY, value: '1' })
+                .onConflictDoUpdate({ target: settings.key, set: { value: '1' } });
+      await d.insert(settings).values({ key: SETUP_COMPLETE_KEY, value: '1' })
+                .onConflictDoUpdate({ target: settings.key, set: { value: '1' } });
       log.warn('Admin created from env, setup complete');
     } catch (err) {
       log.error(`Seed failed: ${err instanceof Error ? err.message : String(err)}`);

@@ -64,9 +64,9 @@ export async function deviceRoutes(app: FastifyInstance) {
     const d = getDb();
     let allClients;
     if (user.role === 'admin') {
-      allClients = d.select().from(clients).orderBy(desc(clients.online), desc(clients.lastSeen)).all();
+      allClients = (await d.select().from(clients).orderBy(desc(clients.online), desc(clients.lastSeen)));
     } else {
-      allClients = d.select().from(clients).where(eq(clients.ownerId, user.userId)).orderBy(desc(clients.online), desc(clients.lastSeen)).all();
+      allClients = (await d.select().from(clients).where(eq(clients.ownerId, user.userId)).orderBy(desc(clients.online), desc(clients.lastSeen)));
     }
     const formatted = allClients.map(formatClient);
     return {
@@ -90,7 +90,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'You do not have access to this device' });
     }
     const d = getDb();
-    const client = d.select().from(clients).where(eq(clients.id, id)).get();
+    const client = (await d.select().from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
@@ -114,7 +114,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'Insufficient permissions' });
     }
     const d = getDb();
-    const client = d.select().from(clients).where(eq(clients.id, id)).get();
+    const client = (await d.select().from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
@@ -132,13 +132,13 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'You do not have access to this device' });
     }
     const d = getDb();
-    const existing = d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).get();
+    const existing = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!existing) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
     socketService.disconnectClient(id);
     socketService.setGps(id, 0);
-    d.delete(clients).where(eq(clients.id, id)).run();
+    await d.delete(clients).where(eq(clients.id, id));
     dbHelpers.addLog('INFO', 'CLIENT', `Client ${id} deleted`);
     return { success: true, message: 'Client deleted' };
   });
@@ -153,7 +153,7 @@ export async function deviceRoutes(app: FastifyInstance) {
     if (!canAccessDevice(user, id)) {
       return reply.code(403).send({ success: false, error: 'You do not have access to this device' });
     }
-    const client = d.select().from(clients).where(eq(clients.id, id)).get();
+    const client = (await d.select().from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
@@ -191,7 +191,7 @@ export async function deviceRoutes(app: FastifyInstance) {
         upload: 'uploads',
       };
 
-      const allFiles = d.select().from(clientFiles).where(eq(clientFiles.clientId, id)).all();
+      const allFiles = (await d.select().from(clientFiles).where(eq(clientFiles.clientId, id)));
       for (const file of allFiles) {
         const subfolder = fileTypeMap[file.fileType] || 'other';
         const safeName = (file.originalName || `file_${file.id}`).replace(/[\/\\]/g, '_');
@@ -244,7 +244,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       }
     }
     const d = getDb();
-    const client = d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).get();
+    const client = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
@@ -266,7 +266,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: 'Interval must be between 0 and 3600 seconds' });
     }
     const d = getDb();
-    const client = d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).get();
+    const client = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
@@ -289,11 +289,11 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'You can only manage your own devices' });
     }
     const d = getDb();
-    const targetUser = d.select({ id: userTable.id }).from(userTable).where(eq(userTable.id, ownerId)).get();
+    const targetUser = (await d.select({ id: userTable.id }).from(userTable).where(eq(userTable.id, ownerId)).limit(1))[0];
     if (!targetUser) {
       return reply.code(400).send({ success: false, error: 'Target user does not exist' });
     }
-    const client = d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).get();
+    const client = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
@@ -313,7 +313,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'You can only manage your own devices' });
     }
     const d = getDb();
-    const client = d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).get();
+    const client = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }

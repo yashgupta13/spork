@@ -10,16 +10,16 @@ import { getConfig } from '../config/index.js';
 import { log } from '../utils/logger.js';
 import { DEFAULT_USER_PERMISSIONS } from '../types/index.js';
 
-function readOrCreateSecret(): string {
+async function readOrCreateSecret(): Promise<string> {
   const envSecret = process.env.BETTER_AUTH_SECRET;
   if (envSecret && envSecret.length >= 32) return envSecret;
   try {
     const d = getDb();
-    const row = d.select({ secret: jwtSecret.secret }).from(jwtSecret).where(eq(jwtSecret.id, 1)).get();
+    const row = (await d.select({ secret: jwtSecret.secret }).from(jwtSecret).where(eq(jwtSecret.id, 1)).limit(1))[0];
     if (row?.secret && row.secret.length >= 32) return row.secret;
     const newSecret = crypto.randomBytes(48).toString('base64url');
-    d.insert(jwtSecret).values({ id: 1, secret: newSecret })
-      .onConflictDoUpdate({ target: jwtSecret.id, set: { secret: newSecret } }).run();
+    await d.insert(jwtSecret).values({ id: 1, secret: newSecret })
+            .onConflictDoUpdate({ target: jwtSecret.id, set: { secret: newSecret } });
     return newSecret;
   } catch (e) {
     log.error(`Auth secret error: ${e}. Using ephemeral.`);

@@ -61,14 +61,14 @@ taskManager.register('cleanup', 3600000, () => {
   } catch (err: unknown) { log.error(`cleanup commands: ${err instanceof Error ? err.message : String(err)}`); }
 }, false);
 
-taskManager.register('heartbeat', 30000, () => {
+taskManager.register('heartbeat', 30000, async () => {
   try {
     const d = getDb();
-    const onlineInDb = d.select({ id: clients.id }).from(clients).where(eq(clients.online, true)).all();
+    const onlineInDb = (await d.select({ id: clients.id }).from(clients).where(eq(clients.online, true)));
     const nowIso = new Date().toISOString();
     for (const client of onlineInDb) {
       if (!socketService.isClientConnected(client.id)) {
-        d.update(clients).set({ online: false, lastSeen: nowIso }).where(eq(clients.id, client.id)).run();
+        await d.update(clients).set({ online: false, lastSeen: nowIso }).where(eq(clients.id, client.id));
       }
     }
   } catch (err: unknown) {

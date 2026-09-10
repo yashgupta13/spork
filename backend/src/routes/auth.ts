@@ -143,34 +143,32 @@ export async function authRoutes(app: FastifyInstance) {
     const d = getDb();
     const nowDate = new Date();
     const rows = user.role === 'admin'
-      ? d.select({
-          id: sessionTable.id,
-          token: sessionTable.token,
-          userId: sessionTable.userId,
-          username: userTable.username,
-          ip: sessionTable.ipAddress,
-          userAgent: sessionTable.userAgent,
-          createdAt: sessionTable.createdAt,
-          expiresAt: sessionTable.expiresAt,
-        }).from(sessionTable)
-          .leftJoin(userTable, eq(userTable.id, sessionTable.userId))
-          .where(gt(sessionTable.expiresAt, nowDate))
-          .orderBy(sessionTable.createdAt)
-          .all()
-      : d.select({
-          id: sessionTable.id,
-          token: sessionTable.token,
-          userId: sessionTable.userId,
-          username: userTable.username,
-          ip: sessionTable.ipAddress,
-          userAgent: sessionTable.userAgent,
-          createdAt: sessionTable.createdAt,
-          expiresAt: sessionTable.expiresAt,
-        }).from(sessionTable)
-          .leftJoin(userTable, eq(userTable.id, sessionTable.userId))
-          .where(and(eq(sessionTable.userId, user.userId), gt(sessionTable.expiresAt, nowDate)))
-          .orderBy(sessionTable.createdAt)
-          .all();
+      ? (await d.select({
+                  id: sessionTable.id,
+                  token: sessionTable.token,
+                  userId: sessionTable.userId,
+                  username: userTable.username,
+                  ip: sessionTable.ipAddress,
+                  userAgent: sessionTable.userAgent,
+                  createdAt: sessionTable.createdAt,
+                  expiresAt: sessionTable.expiresAt,
+                }).from(sessionTable)
+                  .leftJoin(userTable, eq(userTable.id, sessionTable.userId))
+                  .where(gt(sessionTable.expiresAt, nowDate))
+                  .orderBy(sessionTable.createdAt))
+      : (await d.select({
+                  id: sessionTable.id,
+                  token: sessionTable.token,
+                  userId: sessionTable.userId,
+                  username: userTable.username,
+                  ip: sessionTable.ipAddress,
+                  userAgent: sessionTable.userAgent,
+                  createdAt: sessionTable.createdAt,
+                  expiresAt: sessionTable.expiresAt,
+                }).from(sessionTable)
+                  .leftJoin(userTable, eq(userTable.id, sessionTable.userId))
+                  .where(and(eq(sessionTable.userId, user.userId), gt(sessionTable.expiresAt, nowDate)))
+                  .orderBy(sessionTable.createdAt));
     const data = rows.map((r) => ({
       id: r.id,
       userId: r.userId,
@@ -191,8 +189,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     const user = getRequestUser(request);
     const d = getDb();
-    const row = d.select({ id: sessionTable.id, userId: sessionTable.userId, token: sessionTable.token })
-      .from(sessionTable).where(eq(sessionTable.id, id)).get();
+    const row = (await d.select({ id: sessionTable.id, userId: sessionTable.userId, token: sessionTable.token })
+          .from(sessionTable).where(eq(sessionTable.id, id)).limit(1))[0];
     if (!row) {
       return reply.code(404).send({ success: false, error: 'Session not found' });
     }
@@ -202,7 +200,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (row.token === user.sessionToken) {
       return reply.code(400).send({ success: false, error: 'Cannot revoke your current session - use logout instead' });
     }
-    d.delete(sessionTable).where(eq(sessionTable.id, id)).run();
+    await d.delete(sessionTable).where(eq(sessionTable.id, id));
     dbHelpers.addLog('AUTH', 'SESSION', `Session ${id} revoked by ${user.username}`);
     return { success: true };
   });
@@ -225,10 +223,9 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
     const d = getDb();
-    const accountRow = d.select({ password: accountTable.password })
-      .from(accountTable)
-      .where(and(eq(accountTable.userId, user.userId), eq(accountTable.providerId, 'credential')))
-      .get();
+    const accountRow = (await d.select({ password: accountTable.password })
+          .from(accountTable)
+          .where(and(eq(accountTable.userId, user.userId), eq(accountTable.providerId, 'credential'))).limit(1))[0];
     if (!accountRow?.password) {
       return reply.code(500).send({ success: false, error: 'Account record missing' });
     }
@@ -256,8 +253,8 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: validation.message });
       }
       const d = getDb();
-      const existing = d.select({ id: userTable.id }).from(userTable)
-        .where(and(eq(sql`LOWER(${userTable.username})`, username.toLowerCase()), ne(userTable.id, user.userId))).get();
+      const existing = (await d.select({ id: userTable.id }).from(userTable)
+              .where(and(eq(sql`LOWER(${userTable.username})`, username.toLowerCase()), ne(userTable.id, user.userId))).limit(1))[0];
       if (existing) {
         return reply.code(409).send({ success: false, error: 'Username already taken' });
       }
@@ -269,8 +266,8 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: validation.message });
       }
       const d = getDb();
-      const existing = d.select({ id: userTable.id }).from(userTable)
-        .where(and(eq(sql`LOWER(${userTable.email})`, email.toLowerCase()), ne(userTable.id, user.userId))).get();
+      const existing = (await d.select({ id: userTable.id }).from(userTable)
+              .where(and(eq(sql`LOWER(${userTable.email})`, email.toLowerCase()), ne(userTable.id, user.userId))).limit(1))[0];
       if (existing) {
         return reply.code(409).send({ success: false, error: 'Email already taken' });
       }

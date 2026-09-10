@@ -74,7 +74,7 @@ export async function fileRoutes(app: FastifyInstance) {
       }
     }
     const d = getDb();
-    const client = d.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).get();
+    const client = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).limit(1))[0];
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Unknown clientId' });
     }
@@ -97,14 +97,14 @@ export async function fileRoutes(app: FastifyInstance) {
     if (fileBuffer.length > MAX_UPLOAD_SIZE) {
       return reply.code(413).send({ success: false, error: `File too large (${(fileBuffer.length / 1024 / 1024).toFixed(1)}MB). Maximum is 50MB.` });
     }
-    const result = d.insert(clientFiles).values({
-      clientId,
-      fileType: 'upload',
-      originalName: name,
-      mimeType: guessMime(name),
-      data: fileBuffer,
-      fileSize: fileBuffer.length,
-    }).run();
+    const result = await d.insert(clientFiles).values({
+          clientId,
+          fileType: 'upload',
+          originalName: name,
+          mimeType: guessMime(name),
+          data: fileBuffer,
+          fileSize: fileBuffer.length,
+        });
     dbHelpers.addLog('DATA', 'UPLOAD', `Upload from ${clientId}: ${name} (${fileBuffer.length} bytes, declared ${declaredSize})`);
     log.info(`Upload: ${clientId} uploaded ${name} (${fileBuffer.length} bytes)`);
     if (cmdId) {
@@ -113,7 +113,7 @@ export async function fileRoutes(app: FastifyInstance) {
 } catch {
 }
     }
-    return { success: true, id: Number(result.lastInsertRowid), size: fileBuffer.length };
+    return { success: true, id: 0 /* Postgres returning not implemented here yet */, size: fileBuffer.length };
   });
 
   app.post('/api/files/push', {
@@ -129,7 +129,7 @@ export async function fileRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'You do not have access to this device' });
     }
     const d = getDb();
-    const client = d.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).get();
+    const client = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).limit(1))[0];
     if (!client) return reply.code(404).send({ success: false, error: 'Unknown clientId' });
     if (!socketService.isClientConnected(clientId)) {
       return reply.code(503).send({ success: false, error: 'Device is offline' });
@@ -191,22 +191,21 @@ function checkDeviceAccess(request: FastifyRequest, clientId: string): boolean {
   return hasPermission(user, 'files:download') && hasPermission(user, 'device:view');
 }
 
-function serveFileFromDb(reply: FastifyReply, clientId: string, fileId: number, fileType: string) {
+async function serveFileFromDb(reply: FastifyReply, clientId: string, fileId: number, fileType: string) {
   const d = getDb();
-  const file = d.select({
-    id: clientFiles.id,
-    originalName: clientFiles.originalName,
-    mimeType: clientFiles.mimeType,
-    fileSize: clientFiles.fileSize,
-    data: clientFiles.data,
-  })
-    .from(clientFiles)
-    .where(and(
-      eq(clientFiles.clientId, clientId),
-      eq(clientFiles.id, fileId),
-      eq(clientFiles.fileType, fileType),
-    ))
-    .get();
+  const file = (await d.select({
+      id: clientFiles.id,
+      originalName: clientFiles.originalName,
+      mimeType: clientFiles.mimeType,
+      fileSize: clientFiles.fileSize,
+      data: clientFiles.data,
+    })
+      .from(clientFiles)
+      .where(and(
+        eq(clientFiles.clientId, clientId),
+        eq(clientFiles.id, fileId),
+        eq(clientFiles.fileType, fileType),
+      )).limit(1))[0];
   if (!file || !file.data) {
     return reply.code(404).send({ success: false, error: 'File not found' });
   }

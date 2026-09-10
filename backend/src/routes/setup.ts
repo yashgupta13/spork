@@ -11,19 +11,19 @@ const SETUP_COMPLETE_KEY = 'setup.complete';
 const DEVICE_SECRET_MIN_LEN = 8;
 const DEVICE_SECRET_MAX_LEN = 256;
 
-export function isSetupComplete(): boolean {
+export async function isSetupComplete(): Promise<boolean> {
   try {
     const d = getDb();
-    const row = d.select({ value: settings.value }).from(settings).where(eq(settings.key, SETUP_COMPLETE_KEY)).get();
+    const row = (await d.select({ value: settings.value }).from(settings).where(eq(settings.key, SETUP_COMPLETE_KEY)).limit(1))[0];
     return row?.value === '1';
   } catch {
     return false;
   }
 }
 
-export function checkSetupSteps() {
+export async function checkSetupSteps() {
   const d = getDb();
-  const adminRow = d.select({ id: userTable.id, deviceSecret: userTable.deviceSecret }).from(userTable).where(eq(userTable.role, 'admin')).get();
+  const adminRow = (await d.select({ id: userTable.id, deviceSecret: userTable.deviceSecret }).from(userTable).where(eq(userTable.role, 'admin')).limit(1))[0];
   const hasAdmin = !!adminRow;
   const hasDeviceSecret = !!(adminRow?.deviceSecret && adminRow.deviceSecret.length >= 8);
   return {
@@ -36,11 +36,10 @@ function generateDeviceSecret(): string {
   return crypto.randomBytes(24).toString('base64url');
 }
 
-function persistSetting(key: string, value: string): void {
+async function persistSetting(key: string, value: string): Promise<void> {
   const d = getDb();
-  d.insert(settings).values({ key, value })
-    .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date().toISOString() } })
-    .run();
+  await d.insert(settings).values({ key, value })
+        .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date().toISOString() } });
 }
 
 export async function setupGuard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -74,7 +73,7 @@ export async function setupRoutes(app: FastifyInstance) {
     if (setupInProgress) {
       return reply.code(409).send({ success: false, error: 'Setup is already in progress' });
     }
-    if (isSetupComplete()) {
+    if (await isSetupComplete()) {
       return reply.code(403).send({ success: false, error: 'Setup has already been completed' });
     }
     setupInProgress = true;
@@ -113,13 +112,13 @@ export async function setupRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: 'Device secret is required - choose auto-generate or enter one manually' });
     }
     const d = getDb();
-    const existingUser = d.select({ id: userTable.id }).from(userTable)
-      .where(eq(userTable.email, email.toLowerCase())).get();
+    const existingUser = (await d.select({ id: userTable.id }).from(userTable)
+          .where(eq(userTable.email, email.toLowerCase())).limit(1))[0];
     if (existingUser) {
       return reply.code(409).send({ success: false, error: 'A user with this email already exists' });
     }
-    const existingUsername = d.select({ id: userTable.id }).from(userTable)
-      .where(eq(userTable.username, username.toLowerCase())).get();
+    const existingUsername = (await d.select({ id: userTable.id }).from(userTable)
+          .where(eq(userTable.username, username.toLowerCase())).limit(1))[0];
     if (existingUsername) {
       return reply.code(409).send({ success: false, error: 'This username is already taken' });
     }
@@ -137,13 +136,13 @@ export async function setupRoutes(app: FastifyInstance) {
       if (!userId) {
         throw new Error('Failed to create admin account');
       }
-      d.update(userTable).set({
-        role: 'admin',
-        isDefault: 1,
-        permissions: JSON.stringify(ALL_PERMISSIONS),
-        deviceSecret: finalDeviceSecret,
-        updatedAt: new Date(),
-      }).where(eq(userTable.id, userId)).run();
+      await d.update(userTable).set({
+                role: 'admin',
+                isDefault: 1,
+                permissions: JSON.stringify(ALL_PERMISSIONS),
+                deviceSecret: finalDeviceSecret,
+                updatedAt: new Date(),
+              }).where(eq(userTable.id, userId));
       dbHelpers.invalidateDeviceSecretsCache();
     } catch (err) {
       log.error(`Setup failed: ${err instanceof Error ? err.message : String(err)}`);

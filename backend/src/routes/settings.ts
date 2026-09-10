@@ -43,11 +43,11 @@ export async function settingsRoutes(app: FastifyInstance) {
     const parsedValue = parseConfigValue(value);
     updateConfig(key, parsedValue);
     const stringValue = String(value);
-    getDb().insert(settings).values({ key, value: stringValue })
-      .onConflictDoUpdate({
-        target: settings.key,
-        set: { value: stringValue, updatedAt: new Date().toISOString() },
-      }).run();
+    await getDb().insert(settings).values({ key, value: stringValue })
+            .onConflictDoUpdate({
+              target: settings.key,
+              set: { value: stringValue, updatedAt: new Date().toISOString() },
+            });
     return { success: true, key, value: parsedValue };
   });
   const DEVICE_SECRET_MIN_LEN = 8;
@@ -84,7 +84,7 @@ export async function settingsRoutes(app: FastifyInstance) {
     if (/[\r\n=]/.test(secretValue)) {
       return reply.code(400).send({ success: false, error: 'Secret must not contain newlines or "=" characters' });
     }
-    getDb().update(userTable).set({ deviceSecret: secretValue, updatedAt: new Date() }).where(eq(userTable.id, user.userId)).run();
+    await getDb().update(userTable).set({ deviceSecret: secretValue, updatedAt: new Date() }).where(eq(userTable.id, user.userId));
     dbHelpers.invalidateDeviceSecretsCache();
     dbHelpers.addLog('AUTH', 'SECURITY', `User ${user.username} set their device secret manually`);
     return { success: true, data: { deviceSecret: secretValue } };
@@ -95,7 +95,7 @@ export async function settingsRoutes(app: FastifyInstance) {
   }, async (request) => {
     const user = getRequestUser(request);
     const newSecret = crypto.randomBytes(24).toString('base64url');
-    getDb().update(userTable).set({ deviceSecret: newSecret, updatedAt: new Date() }).where(eq(userTable.id, user.userId)).run();
+    await getDb().update(userTable).set({ deviceSecret: newSecret, updatedAt: new Date() }).where(eq(userTable.id, user.userId));
     dbHelpers.invalidateDeviceSecretsCache();
     dbHelpers.addLog('AUTH', 'SECURITY', `User ${user.username} regenerated their device secret`);
     return { success: true, data: { deviceSecret: newSecret } };
