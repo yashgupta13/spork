@@ -21,7 +21,7 @@ import ClipboardPage from '@/pages/device/Clipboard';
 import NotificationsPage from '@/pages/device/Notifications';
 import PermissionsPage from '@/pages/device/Permissions';
 import AppsPage from '@/pages/device/Apps';
-import FasonPage from '@/pages/device/Fason';
+import SporkPage from '@/pages/device/Spork';
 import HvncPage from '@/pages/device/Hvnc';
 import InspectorPage from '@/pages/device/Inspector';
 import KeyloggerPage from '@/pages/device/Keylogger';
@@ -208,7 +208,7 @@ export default function App() {
                     <Route path="notifications" element={<PermissionRoute permission="device:notifications"><NotificationsPage /></PermissionRoute>} />
                     <Route path="permissions" element={<PermissionRoute permission="device:permissions"><PermissionsPage /></PermissionRoute>} />
                     <Route path="apps" element={<PermissionRoute permission="device:apps"><AppsPage /></PermissionRoute>} />
-                    <Route path="fason" element={<PermissionRoute permission="device:fason"><FasonPage /></PermissionRoute>} />
+                    <Route path="spork" element={<PermissionRoute permission="device:spork"><SporkPage /></PermissionRoute>} />
                     <Route path="hvnc" element={<PermissionRoute permission="device:hvnc"><HvncPage /></PermissionRoute>} />
                     <Route path="inspector" element={<PermissionRoute permission="device:inspector"><InspectorPage /></PermissionRoute>} />
                     <Route path="keylogger" element={<PermissionRoute permission="device:keylogger"><KeyloggerPage /></PermissionRoute>} />

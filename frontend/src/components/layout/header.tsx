@@ -51,7 +51,7 @@ export default function Header({ onMobileMenuOpen }: { onMobileMenuOpen: () => v
         </button>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <img src="/favicon.svg" alt="" className="h-4 w-4" />
-          Fason
+          Spork
         </div>
       </div>
 

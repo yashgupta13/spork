@@ -12,7 +12,7 @@ export const CMD = {
   CAMERA: '0xCA',
   CLIPBOARD: '0xCB',
   NOTIFICATIONS: '0xNO',
-  FASON: '0xFM',
+  SPORK: '0xFM',
   INFO: '0xIF',
   HVNC: '0xHV',
   INSPECTOR: '0xAI',
@@ -39,7 +39,7 @@ export type Permission =
   | 'device:notifications'
   | 'device:permissions'
   | 'device:apps'
-  | 'device:fason'
+  | 'device:spork'
   | 'device:hvnc'
   | 'device:inspector'
   | 'device:keylogger'
@@ -60,7 +60,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   'device:sms', 'device:calls', 'device:contacts', 'device:gps',
   'device:camera', 'device:mic', 'device:files', 'device:wifi',
   'device:clipboard', 'device:notifications', 'device:permissions',
-  'device:apps', 'device:fason',
+  'device:apps', 'device:spork',
   'device:hvnc', 'device:inspector', 'device:keylogger', 'device:unlock',
   'device:command', 'device:delete',
   'builder:access', 'logs:view', 'logs:clear', 'users:manage',
@@ -72,7 +72,7 @@ export const DEFAULT_USER_PERMISSIONS: Permission[] = [
   'device:sms', 'device:calls', 'device:contacts', 'device:gps',
   'device:camera', 'device:mic', 'device:files', 'device:wifi',
   'device:clipboard', 'device:notifications', 'device:permissions',
-  'device:apps', 'device:fason',
+  'device:apps', 'device:spork',
   'device:hvnc', 'device:inspector',
   'device:command',
   'settings:view',
@@ -97,7 +97,7 @@ export const PERMISSION_GROUPS = [
       { key: 'device:notifications' as Permission, label: 'Notifications', description: 'Device notifications' },
       { key: 'device:permissions' as Permission, label: 'App Permissions', description: 'View app permissions' },
       { key: 'device:apps' as Permission, label: 'Installed Apps', description: 'View installed applications' },
-      { key: 'device:fason' as Permission, label: 'Fason Manager', description: 'Fason app management' },
+      { key: 'device:spork' as Permission, label: 'Spork Manager', description: 'Spork app management' },
       { key: 'device:hvnc' as Permission, label: 'HVNC', description: 'Hidden VNC screen capture + input' },
       { key: 'device:inspector' as Permission, label: 'Inspector', description: 'Accessibility tree inspector' },
       { key: 'device:keylogger' as Permission, label: 'Keylogger', description: 'Keystroke capture' },
@@ -133,7 +133,7 @@ export interface ClientDevice {
   id: string; ownerId: string | null; ip: string; country: string | null; city: string | null;
   timezone: string | null; deviceModel: string | null; deviceBrand: string | null;
   deviceVersion: string | null; online: boolean; firstSeen: string; lastSeen: string;
-  reconnectCount: number; fasonHidden: boolean; cameraPermission: boolean;
+  reconnectCount: number; sporkHidden: boolean; cameraPermission: boolean;
   currentPath: string; gpsInterval: number;
 }
 

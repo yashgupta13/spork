@@ -16,6 +16,6 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {
-    url: path.join(DATA_DIR, 'fasonrat.db'),
+    url: path.join(DATA_DIR, 'spork.db'),
   },
 });

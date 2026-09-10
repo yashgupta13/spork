@@ -120,7 +120,7 @@ async function main() {
   const networkUrl = lanIp ? `http://${lanIp}:${port}` : null;
   const publicUrl = process.env.BETTER_AUTH_URL || null;
   console.log('');
-  console.log('  \x1b[35m\x1b[1mFasonRat\x1b[0m \x1b[2mv3.1.0\x1b[0m');
+  console.log('  \x1b[35m\x1b[1mSpork\x1b[0m \x1b[2mv3.1.0\x1b[0m');
   console.log('  \x1b[2m─────────────────────────────\x1b[0m');
   if (publicUrl) {
     console.log(`  \x1b[2mURL:\x1b[0m      ${publicUrl}`);

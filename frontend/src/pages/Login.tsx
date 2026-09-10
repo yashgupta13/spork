@@ -80,10 +80,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-[400px] shadow-xl border-0 bg-card/80 backdrop-blur-sm relative">
         <CardHeader className="text-center space-y-4 pb-4">
           <div className="flex items-center justify-center mx-auto">
-            <img src="/favicon.svg" alt="Fason" className="h-12 w-12 shadow-lg shadow-primary/20 rounded-xl" />
+            <img src="/favicon.svg" alt="Spork" className="h-12 w-12 shadow-lg shadow-primary/20 rounded-xl" />
           </div>
           <div>
-            <CardTitle className="text-xl">Fason</CardTitle>
+            <CardTitle className="text-xl">Spork</CardTitle>
             <CardDescription className="mt-1">Sign in to your control panel</CardDescription>
           </div>
         </CardHeader>

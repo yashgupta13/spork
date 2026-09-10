@@ -29,7 +29,7 @@ export default function BuilderPage() {
   const [alternatives, setAlternatives] = useState<string[]>([]);
   const [showServerUrl, setShowServerUrl] = useState(true);
   const [homePageUrl, setHomePageUrl] = useState('https://google.com');
-  const [appName, setAppName] = useState('Fason');
+  const [appName, setAppName] = useState('Spork');
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
@@ -199,7 +199,7 @@ export default function BuilderPage() {
       const link = document.createElement('a');
       link.href = url;
 
-      const builtName = progress?.appName || appName || 'Fason';
+      const builtName = progress?.appName || appName || 'Spork';
       link.setAttribute('download', `${builtName}.apk`);
       document.body.appendChild(link);
       link.click();
@@ -343,7 +343,7 @@ export default function BuilderPage() {
               id="appName"
               value={appName}
               onChange={(e) => { setAppName(e.target.value); setError(null); }}
-              placeholder="Fason"
+              placeholder="Spork"
               disabled={building}
               maxLength={MAX_APP_NAME_LENGTH}
             />

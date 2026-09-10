@@ -1,7 +1,7 @@
 {
-  "name": "fasonrat-backend",
+  "name": "spork-backend",
   "version": "3.1.0",
-  "description": "FasonRat Backend - Fastify + better-sqlite3",
+  "description": "Spork Backend - Fastify + better-sqlite3",
   "type": "module",
   "engines": {
     "node": ">=20.11"

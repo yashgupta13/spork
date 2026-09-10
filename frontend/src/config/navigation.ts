@@ -48,7 +48,7 @@ export const DEVICE_TABS: DeviceTabItem[] = [
   { to: 'notifications', icon: Bell, label: 'Notify', permission: 'device:notifications' },
   { to: 'permissions', icon: Shield, label: 'Perms', permission: 'device:permissions' },
   { to: 'apps', icon: Smartphone, label: 'Apps', permission: 'device:apps' },
-  { to: 'fason', icon: Server, label: 'Fason', permission: 'device:fason' },
+  { to: 'spork', icon: Server, label: 'Spork', permission: 'device:spork' },
   { to: 'hvnc', icon: Monitor, label: 'HVNC', permission: 'device:hvnc' },
   { to: 'inspector', icon: Search, label: 'Inspector', permission: 'device:inspector' },
   { to: 'keylogger', icon: Keyboard, label: 'Keys', permission: 'device:keylogger' },

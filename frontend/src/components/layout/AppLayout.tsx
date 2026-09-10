@@ -53,7 +53,6 @@ export default function AppLayout() {
 
         <footer className="shrink-0 border-t border-border bg-background px-4 md:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <img src="/logo.svg" alt="Fason" className="h-5 shrink-0" />
             <a href="https://github.com/fahimahamed1" target="_blank" rel="noopener noreferrer" className="footer-credit">Made by <span className="footer-name">Fahim Ahamed</span></a>
           </div>
         </footer>

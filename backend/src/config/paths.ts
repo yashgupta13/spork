@@ -10,7 +10,7 @@ const DATA_DIR = path.resolve(ROOT_DIR, 'data');
 const paths = {
   rootDir: ROOT_DIR,
   dataDir: DATA_DIR,
-  dbPath: path.join(DATA_DIR, 'fasonrat.db'),
+  dbPath: path.join(DATA_DIR, 'spork.db'),
   factoryDir: path.join(ROOT_DIR, 'app', 'factory'),
   baseApkPath: path.join(ROOT_DIR, 'app', 'factory', 'baseApp', 'Fason.apk'),
   signerPath: path.join(ROOT_DIR, 'app', 'factory', 'uber-apk-signer.jar'),
@@ -24,7 +24,7 @@ function ensureDataDir(): void {
 }
 
 function createBuildDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'fason-build-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'spork-build-'));
 }
 
 export { paths, ensureDataDir, createBuildDir };

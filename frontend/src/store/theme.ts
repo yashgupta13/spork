@@ -32,7 +32,7 @@ export const useThemeStore = create<ThemeState>()(
       },
     }),
     {
-      name: "fasonrat-theme",
+      name: "sporkrat-theme",
       onRehydrateStorage: () => (state) => {
         if (state) applyTheme(state.resolvedTheme);
       },

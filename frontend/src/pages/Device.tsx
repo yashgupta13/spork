@@ -70,7 +70,7 @@ export default function DevicePage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `fasonrat-data-${id}.zip`;
+      link.download = `sporkrat-data-${id}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();

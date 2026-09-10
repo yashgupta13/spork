@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, EyeOff, Eye, FileJson, Trash2 } from 'lucide-react';
 
-export default function FasonPage() {
+export default function SporkPage() {
   const { clientId, loadClient, online } = useOutletContext<DeviceOutletContext>();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -24,38 +24,38 @@ export default function FasonPage() {
 
   const { data: hidden, loading, error, refresh, sendCommand, commandStatus, clearData } = useDeviceData<boolean>({
     clientId,
-    page: 'fason',
+    page: "spork",
     extractData: (d) => !!d.hidden,
-    dataType: 'fason',
+    dataType: 'spork',
     defaultValue: false,
   });
 
   const hideApp = useCallback(async () => {
-    await sendCommand(CMD.FASON, { action: 'hide' });
+    await sendCommand(CMD.SPORK, { action: 'hide' });
 
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => { refresh(); loadClient(); }, 2000);
   }, [sendCommand, refresh, loadClient]);
 
   const showApp = useCallback(async () => {
-    await sendCommand(CMD.FASON, { action: 'show' });
+    await sendCommand(CMD.SPORK, { action: 'show' });
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => { refresh(); loadClient(); }, 2000);
   }, [sendCommand, refresh, loadClient]);
 
   const checkStatus = useCallback(async () => {
-    await sendCommand(CMD.FASON, { action: 'status' });
+    await sendCommand(CMD.SPORK, { action: 'status' });
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => { refresh(); loadClient(); }, 2000);
   }, [sendCommand, refresh, loadClient]);
 
-  const fasonActions = [
+  const sporkActions = [
     {
       label: 'Export JSON',
       icon: FileJson,
       onClick: () => {
         import('@/lib/export').then(({ exportJSON, timestampedFilename }) => {
-          exportJSON({ hidden, timestamp: new Date().toISOString() }, timestampedFilename('fason-status'));
+          exportJSON({ hidden, timestamp: new Date().toISOString() }, timestampedFilename('spork-status'));
         });
       },
     },
@@ -75,7 +75,7 @@ export default function FasonPage() {
         actions={[
           { label: 'Check Status', icon: RefreshCw, onClick: checkStatus, disabled: loading || !online, variant: 'outline' },
         ]}
-        moreActions={<DataActionsMenu actions={fasonActions} disabled={loading} />}
+        moreActions={<DataActionsMenu actions={sporkActions} disabled={loading} />}
         refresh={refresh}
         loading={loading}
         commandStatus={commandStatus}

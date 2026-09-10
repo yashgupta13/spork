@@ -26,7 +26,7 @@ export default function DeviceInfoPage() {
     clientId,
     page: 'info',
     extractData: (d) => (d.deviceInfo as DeviceInfo) || null,
-    dataType: ['info', 'fason'],
+    dataType: ['info', 'spork'],
     defaultValue: null,
   });
 

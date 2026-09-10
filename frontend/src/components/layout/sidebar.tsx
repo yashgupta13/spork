@@ -37,9 +37,9 @@ export default function Sidebar() {
   return (
     <div className="flex flex-col w-[260px] h-full bg-sidebar border-r border-sidebar-border">
       <div className="flex items-center gap-3 px-5 h-[57px] border-b border-sidebar-border shrink-0">
-        <img src="/favicon.svg" alt="Fason" className="h-8 w-8 shrink-0" />
+        <img src="/favicon.svg" alt="Spork" className="h-8 w-8 shrink-0" />
         <div className="flex flex-col">
-          <span className="text-sm font-semibold text-sidebar-foreground leading-tight">Fason</span>
+          <span className="text-sm font-semibold text-sidebar-foreground leading-tight">Spork</span>
           <span className="text-[10px] text-sidebar-muted-foreground leading-tight">{APP_VERSION}</span>
         </div>
       </div>
