@@ -81,7 +81,9 @@ export default function DevicesPage() {
       setAssignDialog(null);
       fetchDashboard();
     } catch (err: any) {
-      setAssignError(err?.response?.data?.error || 'Failed to assign device');
+      const rawError = err?.response?.data?.error;
+      const errorMessage = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : String(rawError || 'Failed to assign device');
+      setAssignError(errorMessage);
     }
     setAssigning(false);
   };
@@ -94,7 +96,9 @@ export default function DevicesPage() {
       fetchDashboard();
     } catch (err: any) {
 
-      setActionError(err?.response?.data?.error || 'Failed to unassign device');
+      const rawError = err?.response?.data?.error;
+      const errorMessage = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : String(rawError || 'Failed to unassign device');
+      setActionError(errorMessage);
     }
   };
 

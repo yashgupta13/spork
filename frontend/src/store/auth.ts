@@ -92,10 +92,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: userData, isAuthenticated: true, isLoading: false, isChecking: false });
         return true;
       }
-      set({ error: res.data.error || 'Login failed', isLoading: false });
+      set({ error: res.data.error && typeof res.data.error === 'string' ? res.data.error : String(res.data.error?.message || res.data.error || 'Login failed'), isLoading: false });
       return false;
     } catch (err: unknown) {
-      const msg = (err as any)?.response?.data?.error || (err instanceof Error ? err.message : 'Login failed');
+      const rawError = (err as any)?.response?.data?.error;
+      const msg = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : (err instanceof Error ? err.message : 'Login failed');
       set({ error: msg, isLoading: false });
       return false;
     }

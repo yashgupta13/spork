@@ -184,8 +184,8 @@ export function useDeviceData<T>({
         setCommandStatus('responded');
         setCommandId(commandId);
 
-        if (summary) setCommandSummary(summary);
-        else if (error) setCommandSummary(error);
+        if (summary) setCommandSummary(typeof summary === 'string' ? summary : String(summary));
+        else if (error) setCommandSummary(typeof error === 'string' ? error : String(error));
         commandTimerRef.current = setTimeout(() => {
           setCommandStatus('idle');
           setCommandSummary(null);
@@ -198,8 +198,8 @@ export function useDeviceData<T>({
         clearCommandTimer();
         setCommandStatus('error');
         setCommandId(commandId);
-        if (error) setCommandSummary(error);
-        else if (summary) setCommandSummary(summary);
+        if (error) setCommandSummary(typeof error === 'string' ? error : String(error));
+        else if (summary) setCommandSummary(typeof summary === 'string' ? summary : String(summary));
         commandTimerRef.current = setTimeout(() => {
           setCommandStatus('idle');
           setCommandSummary(null);

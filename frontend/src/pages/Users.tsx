@@ -67,7 +67,9 @@ export default function UsersPage() {
         setUsers(res.data.data);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to load users');
+      const rawError = err?.response?.data?.error;
+      const errorMessage = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : String(rawError || 'Failed to load users');
+      setError(errorMessage);
     }
     setLoading(false);
   };
@@ -176,10 +178,14 @@ export default function UsersPage() {
         if (secretTimerRef.current) clearTimeout(secretTimerRef.current);
         secretTimerRef.current = setTimeout(() => setSecretSuccess(null), 6000);
       } else {
-        setSecretError(res.data.error || 'Failed to save secret');
+        const rawError = res.data.error;
+      const errorMessage = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : String(rawError || 'Failed to save secret');
+      setSecretError(errorMessage);
       }
     } catch (err: any) {
-      setSecretError(err?.response?.data?.error || 'Failed to save secret');
+      const rawError = err?.response?.data?.error;
+      const errorMessage = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : String(rawError || 'Failed to save secret');
+      setSecretError(errorMessage);
     }
     setSecretSaving(false);
   };
@@ -199,10 +205,14 @@ export default function UsersPage() {
         if (secretTimerRef.current) clearTimeout(secretTimerRef.current);
         secretTimerRef.current = setTimeout(() => setSecretSuccess(null), 6000);
       } else {
-        setSecretError(res.data.error || 'Failed to regenerate secret');
+        const rawError = res.data.error;
+      const errorMessage = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : String(rawError || 'Failed to regenerate secret');
+      setSecretError(errorMessage);
       }
     } catch (err: any) {
-      setSecretError(err?.response?.data?.error || 'Failed to regenerate secret');
+      const rawError = err?.response?.data?.error;
+      const errorMessage = rawError && typeof rawError === 'object' ? String(rawError?.message || rawError) : String(rawError || 'Failed to regenerate secret');
+      setSecretError(errorMessage);
     }
     setSecretSaving(false);
   };

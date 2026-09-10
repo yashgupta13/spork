@@ -307,7 +307,7 @@ export default function InspectorPage() {
         const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         setAnnouncements((prev) => [...prev.slice(-49), { time, message: String(data.announcement) }]);
       } else if (data.type === 'error' || data.type === 'action_error') {
-        setError(data.error || 'Inspector error');
+        setError(data.error && typeof data.error === 'object' ? String(data.error.message) : String(data.error || 'Inspector error'));
         setCapturing(false);
         if (capturingTimeoutRef.current) { clearTimeout(capturingTimeoutRef.current); capturingTimeoutRef.current = null; }
       } else if (data.type === 'action_result') {
