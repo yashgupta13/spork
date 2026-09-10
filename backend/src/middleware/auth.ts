@@ -19,7 +19,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
       reply.code(401).send({ success: false, error: 'Authentication required' });
       return;
     }
-    const dbUser = dbHelpers.getUserById(session.user.id);
+    const dbUser = (await dbHelpers.getUserById(session.user.id));
     if (!dbUser) {
       reply.code(401).send({ success: false, error: 'User not found' });
       return;
@@ -31,7 +31,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
         reply.code(403).send({ success: false, error: 'Account banned' });
         return;
       }
-      dbHelpers.updateUser(dbUser.id, { banned: false, banReason: null, banExpires: null } as any);
+      (await dbHelpers.updateUser(dbUser.id, { banned: false, banReason: null, banExpires: null } as any));
     }
     const permissions = resolvePermissions(dbUser.role as UserRole, dbUser.permissions);
     const sessionUser: SessionUser = {
@@ -79,12 +79,12 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
     headers.set('authorization', `Bearer ${token}`);
     const session = await getAuth().api.getSession({ headers });
     if (!session || !session.user) return null;
-    const dbUser = dbHelpers.getUserById(session.user.id);
+    const dbUser = (await dbHelpers.getUserById(session.user.id));
     if (!dbUser) return null;
     if (dbUser.banned) {
       const isBanExpired = dbUser.banExpires && new Date(dbUser.banExpires) < new Date();
       if (!isBanExpired) return null;
-      dbHelpers.updateUser(dbUser.id, { banned: false, banReason: null, banExpires: null } as any);
+      (await dbHelpers.updateUser(dbUser.id, { banned: false, banReason: null, banExpires: null } as any));
     }
     const permissions = resolvePermissions(dbUser.role as UserRole, dbUser.permissions);
     return {

@@ -143,14 +143,14 @@ export async function setupRoutes(app: FastifyInstance) {
                 deviceSecret: finalDeviceSecret,
                 updatedAt: new Date(),
               }).where(eq(userTable.id, userId));
-      dbHelpers.invalidateDeviceSecretsCache();
+      (await dbHelpers.invalidateDeviceSecretsCache());
     } catch (err) {
       log.error(`Setup failed: ${err instanceof Error ? err.message : String(err)}`);
       return reply.code(500).send({ success: false, error: 'Failed to create admin account' });
     }
     persistSetting(SETUP_COMPLETE_KEY, '1');
     persistSetting('seed.defaultAdmin.done', '1');
-    dbHelpers.addLog('SYSTEM', 'SETUP', 'Initial setup completed via setup wizard');
+    (await dbHelpers.addLog('SYSTEM', 'SETUP', 'Initial setup completed via setup wizard'));
     return {
       success: true,
       data: {

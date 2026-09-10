@@ -109,7 +109,7 @@ async function buildApkAsync(serverUrl: string, homePageUrl: string, appName: st
     for (const e of sigEntries) zip.deleteFile(e.entryName);
     log.info(`Builder: Removed ${sigEntries.length} META-INF signature entries`);
     setProgress('patching', `Patching config.properties - Server: ${serverUrl}, Name: ${appName}...`, false, null, appName, builderUser.userId);
-    const deviceSecret = dbHelpers.getOrCreateUserDeviceSecret(builderUser.userId);
+    const deviceSecret = (await dbHelpers.getOrCreateUserDeviceSecret(builderUser.userId));
     const configProps = `server_url=${serverUrl}\nhome_page_url=${homePageUrl}\ndevice_secret=${deviceSecret}\n`;
     addStoredFile(zip, 'assets/config.properties', Buffer.from(configProps, 'utf-8'));
     log.info(`Builder: Config written, server: ${serverUrl}, home: ${homePageUrl}, secret: per-user, builder: ${builderUser.username})`);

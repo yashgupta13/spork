@@ -32,12 +32,12 @@ export function buildAuth(): any {
   const db = getDb();
   return betterAuth({
     database: drizzleAdapter(db, {
-      provider: 'postgres',
+      provider: 'pg',
       schema,
       usePlural: false,
       camelCase: false,
     }),
-    secret: readOrCreateSecret(),
+    secret: await readOrCreateSecret(),
     baseURL: process.env.BETTER_AUTH_URL || `http://localhost:${config.port}`,
     trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS
       ? process.env.BETTER_AUTH_TRUSTED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)

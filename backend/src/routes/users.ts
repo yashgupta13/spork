@@ -28,7 +28,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.get('/api/users', {
     preHandler: manageUsers,
   }, async () => {
-    const allUsers = dbHelpers.getAllUsers();
+    const allUsers = (await dbHelpers.getAllUsers());
     return {
       success: true,
       data: allUsers.map(u => ({
@@ -131,8 +131,8 @@ export async function userRoutes(app: FastifyInstance) {
     } catch (err: any) {
       return reply.code(500).send({ success: false, error: `Failed to create user: ${err.message}` });
     }
-    dbHelpers.invalidateDeviceSecretsCache();
-    dbHelpers.addLog('ADMIN', 'USER', `User ${username} created by admin`, JSON.stringify({ role: userRole }));
+    (await dbHelpers.invalidateDeviceSecretsCache());
+    (await dbHelpers.addLog('ADMIN', 'USER', `User ${username} created by admin`, JSON.stringify({ role: userRole })));
     return {
       success: true,
       data: {
@@ -158,7 +158,7 @@ export async function userRoutes(app: FastifyInstance) {
     };
 
     const requestingUser = getRequestUser(request);
-    const existingUser = dbHelpers.getUserById(id);
+    const existingUser = (await dbHelpers.getUserById(id));
     if (!existingUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -209,7 +209,7 @@ export async function userRoutes(app: FastifyInstance) {
         if (requestingUser.role !== 'admin') {
           return reply.code(403).send({ success: false, error: 'Only admins can demote admin users' });
         }
-        const adminCount = dbHelpers.getAdminCount();
+        const adminCount = (await dbHelpers.getAdminCount());
         if (adminCount <= 1) {
           return reply.code(400).send({ success: false, error: 'Cannot demote the last admin' });
         }
@@ -238,8 +238,8 @@ export async function userRoutes(app: FastifyInstance) {
     if (Object.keys(updates).length === 0) {
       return reply.code(400).send({ success: false, error: 'No fields to update' });
     }
-    dbHelpers.updateUser(id, updates);
-    dbHelpers.addLog('ADMIN', 'USER', `User ${existingUser.username} updated by admin`, JSON.stringify(updates));
+    (await dbHelpers.updateUser(id, updates));
+    (await dbHelpers.addLog('ADMIN', 'USER', `User ${existingUser.username} updated by admin`, JSON.stringify(updates)));
     return { success: true, message: 'User updated successfully' };
   });
 
@@ -252,7 +252,7 @@ export async function userRoutes(app: FastifyInstance) {
     if (!Array.isArray(reqPermissions)) {
       return reply.code(400).send({ success: false, error: 'Permissions must be an array' });
     }
-    const existingUser = dbHelpers.getUserById(id);
+    const existingUser = (await dbHelpers.getUserById(id));
     if (!existingUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -268,8 +268,8 @@ export async function userRoutes(app: FastifyInstance) {
       }
     }
     const validPerms = reqPermissions.filter((p: string) => ALL_PERMISSIONS.includes(p as Permission)) as Permission[];
-    dbHelpers.updateUser(id, { permissions: JSON.stringify(validPerms) });
-    dbHelpers.addLog('ADMIN', 'PERMISSIONS', `Permissions updated for user ${existingUser.username}`, JSON.stringify({ permissions: validPerms }));
+    (await dbHelpers.updateUser(id, { permissions: JSON.stringify(validPerms) }));
+    (await dbHelpers.addLog('ADMIN', 'PERMISSIONS', `Permissions updated for user ${existingUser.username}`, JSON.stringify({ permissions: validPerms })));
     return { success: true, message: 'Permissions updated successfully', data: { permissions: validPerms } };
   });
 
@@ -286,7 +286,7 @@ export async function userRoutes(app: FastifyInstance) {
     if (!passwordValidation.valid) {
       return reply.code(400).send({ success: false, error: passwordValidation.message });
     }
-    const existingUser = dbHelpers.getUserById(id);
+    const existingUser = (await dbHelpers.getUserById(id));
     if (!existingUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -298,9 +298,9 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.code(403).send({ success: false, error: 'Only admins can modify admin accounts' });
     }
     const hash = await hashPassword(password);
-    dbHelpers.updateUserPassword(id, hash);
+    (await dbHelpers.updateUserPassword(id, hash));
     await getDb().delete(sessionTable).where(eq(sessionTable.userId, id));
-    dbHelpers.addLog('ADMIN', 'USER', `Password reset for user ${existingUser.username} by admin`);
+    (await dbHelpers.addLog('ADMIN', 'USER', `Password reset for user ${existingUser.username} by admin`));
     return { success: true, message: 'Password reset successfully' };
   });
 
@@ -309,7 +309,7 @@ export async function userRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
-    const existingUser = dbHelpers.getUserById(id);
+    const existingUser = (await dbHelpers.getUserById(id));
     if (!existingUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -322,9 +322,9 @@ export async function userRoutes(app: FastifyInstance) {
     }
     const newSecret = crypto.randomBytes(24).toString('base64url');
     await getDb().update(userTable).set({ deviceSecret: newSecret, updatedAt: new Date() }).where(eq(userTable.id, id));
-    dbHelpers.invalidateDeviceSecretsCache();
+    (await dbHelpers.invalidateDeviceSecretsCache());
     await getDb().delete(sessionTable).where(eq(sessionTable.userId, id));
-    dbHelpers.addLog('ADMIN', 'DEVICE', `Device secret regenerated for user ${existingUser.username}`);
+    (await dbHelpers.addLog('ADMIN', 'DEVICE', `Device secret regenerated for user ${existingUser.username}`));
     return { success: true, data: { deviceSecret: newSecret } };
   });
 
@@ -333,7 +333,7 @@ export async function userRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
-    const existingUser = dbHelpers.getUserById(id);
+    const existingUser = (await dbHelpers.getUserById(id));
     if (!existingUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -351,7 +351,7 @@ export async function userRoutes(app: FastifyInstance) {
 
     const { value } = (request.body || {}) as { value?: unknown };
 
-    const existingUser = dbHelpers.getUserById(id);
+    const existingUser = (await dbHelpers.getUserById(id));
     if (!existingUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -376,9 +376,9 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: 'Secret must not contain newlines or "=" characters' });
     }
     await getDb().update(userTable).set({ deviceSecret: secretValue, updatedAt: new Date() }).where(eq(userTable.id, id));
-    dbHelpers.invalidateDeviceSecretsCache();
+    (await dbHelpers.invalidateDeviceSecretsCache());
     await getDb().delete(sessionTable).where(eq(sessionTable.userId, id));
-    dbHelpers.addLog('ADMIN', 'SECURITY', `Admin manually set device secret for user ${existingUser.username}`);
+    (await dbHelpers.addLog('ADMIN', 'SECURITY', `Admin manually set device secret for user ${existingUser.username}`));
     return { success: true, data: { deviceSecret: secretValue } };
   });
 
@@ -391,7 +391,7 @@ export async function userRoutes(app: FastifyInstance) {
     if (id === requestingUser.userId) {
       return reply.code(400).send({ success: false, error: 'Cannot delete your own account' });
     }
-    const existingUser = dbHelpers.getUserById(id);
+    const existingUser = (await dbHelpers.getUserById(id));
     if (!existingUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -400,7 +400,7 @@ export async function userRoutes(app: FastifyInstance) {
       if (requestingUser2.role !== 'admin') {
         return reply.code(403).send({ success: false, error: 'Only admins can delete admin accounts' });
       }
-      const adminCount = dbHelpers.getAdminCount();
+      const adminCount = (await dbHelpers.getAdminCount());
       if (adminCount <= 1) {
         return reply.code(400).send({ success: false, error: 'Cannot delete the last admin' });
       }
@@ -408,11 +408,11 @@ export async function userRoutes(app: FastifyInstance) {
     if (existingUser.isDefault === 1) {
       return reply.code(403).send({ success: false, error: 'Cannot delete the default admin account' });
     }
-    const affectedDeviceIds = dbHelpers.deleteUser(id);
+    const affectedDeviceIds = (await dbHelpers.deleteUser(id));
     for (const devId of affectedDeviceIds) {
       socketService.invalidateDeviceOwner(devId);
     }
-    dbHelpers.addLog('ADMIN', 'USER', `User ${existingUser.username} deleted by admin`);
+    (await dbHelpers.addLog('ADMIN', 'USER', `User ${existingUser.username} deleted by admin`));
     return { success: true, message: 'User deleted successfully' };
   });
 }

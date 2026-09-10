@@ -9,9 +9,9 @@ import { log } from '../utils/logger.js';
 import { socketService } from '../services/socket.js';
 import { CMD } from '../types/index.js';
 
-function canAccessDevice(user: SessionUser, clientId: string): boolean {
+async function canAccessDevice(user: SessionUser, clientId: string): Promise<boolean> {
   if (user.role === 'admin') return true;
-  return dbHelpers.getDeviceOwnerId(clientId) === user.userId;
+  return (await dbHelpers.getDeviceOwnerId(clientId)) === user.userId;
 }
 
 const FILE_TYPE_MAP: Record<string, string> = {
@@ -49,7 +49,7 @@ export async function fileRoutes(app: FastifyInstance) {
     if (!clientId) {
       return reply.code(400).send({ success: false, error: 'Missing clientId' });
     }
-    const userSecrets = dbHelpers.getAllDeviceSecrets();
+    const userSecrets = (await dbHelpers.getAllDeviceSecrets());
     let authed = false;
     let matchedUserId: string | null = null;
     for (const { userId, deviceSecret } of userSecrets) {
@@ -65,12 +65,12 @@ export async function fileRoutes(app: FastifyInstance) {
       return reply.code(401).send({ success: false, error: 'Invalid device token' });
     }
     if (matchedUserId) {
-      const deviceOwner = dbHelpers.getDeviceOwnerId(clientId);
+      const deviceOwner = (await dbHelpers.getDeviceOwnerId(clientId));
       if (deviceOwner && deviceOwner !== matchedUserId) {
         return reply.code(403).send({ success: false, error: 'Device belongs to another user' });
       }
       if (!deviceOwner) {
-        dbHelpers.assignDevice(clientId, matchedUserId);
+        (await dbHelpers.assignDevice(clientId, matchedUserId));
       }
     }
     const d = getDb();
@@ -105,11 +105,11 @@ export async function fileRoutes(app: FastifyInstance) {
           data: fileBuffer,
           fileSize: fileBuffer.length,
         });
-    dbHelpers.addLog('DATA', 'UPLOAD', `Upload from ${clientId}: ${name} (${fileBuffer.length} bytes, declared ${declaredSize})`);
+    (await dbHelpers.addLog('DATA', 'UPLOAD', `Upload from ${clientId}: ${name} (${fileBuffer.length} bytes, declared ${declaredSize})`));
     log.info(`Upload: ${clientId} uploaded ${name} (${fileBuffer.length} bytes)`);
     if (cmdId) {
       try {
-        dbHelpers.markCommandResponded(cmdId, `Uploaded: ${name}`);
+        (await dbHelpers.markCommandResponded(cmdId, `Uploaded: ${name}`));
 } catch {
 }
     }
@@ -163,7 +163,7 @@ export async function fileRoutes(app: FastifyInstance) {
       buffer: base64Data,
       size: fileBuffer.length,
     });
-    dbHelpers.addLog('DATA', 'PUSH', `Pushed ${fileName} (${fileBuffer.length} bytes) to ${clientId}:${dstPath}`);
+    (await dbHelpers.addLog('DATA', 'PUSH', `Pushed ${fileName} (${fileBuffer.length} bytes) to ${clientId}:${dstPath}`));
     log.info(`Push: ${clientId} <- ${fileName} (${fileBuffer.length} bytes) -> ${dstPath}`);
     return { success: true, sent: result.sent, commandId: result.commandId, size: fileBuffer.length };
   });

@@ -25,11 +25,11 @@ export async function authRoutes(app: FastifyInstance) {
     if (!username || !password) {
       return reply.code(400).send({ success: false, error: 'Username/email and password are required' });
     }
-    const dbUser = dbHelpers.getUserByUsernameOrEmail(username);
+    const dbUser = (await dbHelpers.getUserByUsernameOrEmail(username));
     const normalizedUsername = (dbUser?.username || username).toLowerCase();
     const lockoutIdentifier = `${ip}|${normalizedUsername}`;
-    if (dbHelpers.checkLoginAttempts(ip, config.security.loginAttempts, config.security.loginLockout, lockoutIdentifier)) {
-      dbHelpers.addLog('AUTH', 'SECURITY', `Login locked out for identifier: ${normalizedUsername}`, JSON.stringify({ ip }));
+    if ((await dbHelpers.checkLoginAttempts(ip, config.security.loginAttempts, config.security.loginLockout, lockoutIdentifier))) {
+      (await dbHelpers.addLog('AUTH', 'SECURITY', `Login locked out for identifier: ${normalizedUsername}`, JSON.stringify({ ip })));
       return reply.code(429).send({ success: false, error: 'Too many login attempts. Try again later.' });
     }
     if (!dbUser) {
@@ -39,8 +39,8 @@ export async function authRoutes(app: FastifyInstance) {
         }
 } catch {
 }
-      dbHelpers.recordLoginAttempt(ip, lockoutIdentifier);
-      dbHelpers.addLog('AUTH', 'LOGIN', `Failed login attempt for: ${username}`, JSON.stringify({ ip }));
+      (await dbHelpers.recordLoginAttempt(ip, lockoutIdentifier));
+      (await dbHelpers.addLog('AUTH', 'LOGIN', `Failed login attempt for: ${username}`, JSON.stringify({ ip })));
       return reply.code(401).send({ success: false, error: 'Invalid credentials' });
     }
     if (dbUser.banned) {
@@ -48,7 +48,7 @@ export async function authRoutes(app: FastifyInstance) {
       if (!isBanExpired) {
         return reply.code(403).send({ success: false, error: 'Account banned' });
       }
-      dbHelpers.updateUser(dbUser.id, { banned: false, banReason: null, banExpires: null } as any);
+      (await dbHelpers.updateUser(dbUser.id, { banned: false, banReason: null, banExpires: null } as any));
     }
     let signInRes: any = null;
     try {
@@ -60,8 +60,8 @@ export async function authRoutes(app: FastifyInstance) {
       log.error(`Sign in failed: ${dbUser.username}: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!signInRes || !signInRes.token) {
-      dbHelpers.recordLoginAttempt(ip, lockoutIdentifier);
-      dbHelpers.addLog('AUTH', 'LOGIN', `Failed login attempt for: ${dbUser.username}`, JSON.stringify({ ip }));
+      (await dbHelpers.recordLoginAttempt(ip, lockoutIdentifier));
+      (await dbHelpers.addLog('AUTH', 'LOGIN', `Failed login attempt for: ${dbUser.username}`, JSON.stringify({ ip })));
       return reply.code(401).send({ success: false, error: 'Invalid credentials' });
     }
     const sessionToken = signInRes.token as string;
@@ -72,9 +72,9 @@ export async function authRoutes(app: FastifyInstance) {
       path: '/',
       maxAge: Math.floor(config.security.sessionTimeout / 1000),
     });
-    dbHelpers.updateUser(dbUser.id, { lastLogin: new Date() as any });
+    (await dbHelpers.updateUser(dbUser.id, { lastLogin: new Date() as any }));
     const permissions = resolvePermissions(dbUser.role as UserRole, dbUser.permissions);
-    dbHelpers.addLog('AUTH', 'LOGIN', `User ${dbUser.username} logged in`, JSON.stringify({ ip, role: dbUser.role }));
+    (await dbHelpers.addLog('AUTH', 'LOGIN', `User ${dbUser.username} logged in`, JSON.stringify({ ip, role: dbUser.role })));
     return {
       success: true,
       data: {
@@ -102,7 +102,7 @@ export async function authRoutes(app: FastifyInstance) {
         const sessionUser = await verifySessionToken(token);
         if (sessionUser) {
           username = sessionUser.username;
-          dbHelpers.deleteSessionById(sessionUser.sessionId);
+          (await dbHelpers.deleteSessionById(sessionUser.sessionId));
         }
       }
 } catch {
@@ -110,7 +110,7 @@ export async function authRoutes(app: FastifyInstance) {
     reply.clearCookie('fason.session_token', { path: '/' });
     reply.clearCookie('fason.session_token.sig', { path: '/' });
     if (username) {
-      dbHelpers.addLog('AUTH', 'LOGOUT', `User ${username} logged out`);
+      (await dbHelpers.addLog('AUTH', 'LOGOUT', `User ${username} logged out`));
     }
     return { success: true };
   });
@@ -119,7 +119,7 @@ export async function authRoutes(app: FastifyInstance) {
     preHandler: [app.auth],
   }, async (request, reply) => {
     const user = getRequestUser(request);
-    const dbUser = dbHelpers.getUserById(user.userId);
+    const dbUser = (await dbHelpers.getUserById(user.userId));
     if (!dbUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -201,7 +201,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: 'Cannot revoke your current session - use logout instead' });
     }
     await d.delete(sessionTable).where(eq(sessionTable.id, id));
-    dbHelpers.addLog('AUTH', 'SESSION', `Session ${id} revoked by ${user.username}`);
+    (await dbHelpers.addLog('AUTH', 'SESSION', `Session ${id} revoked by ${user.username}`));
     return { success: true };
   });
 
@@ -218,7 +218,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (!passwordValidation.valid) {
       return reply.code(400).send({ success: false, error: passwordValidation.message });
     }
-    const dbUser = dbHelpers.getUserById(user.userId);
+    const dbUser = (await dbHelpers.getUserById(user.userId));
     if (!dbUser) {
       return reply.code(404).send({ success: false, error: 'User not found' });
     }
@@ -234,9 +234,9 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ success: false, error: 'Current password is incorrect' });
     }
     const newHash = await hashPasswordScrypt(newPassword);
-    dbHelpers.updateUserPassword(user.userId, newHash);
-    dbHelpers.deleteOtherSessions(user.userId, user.sessionToken);
-    dbHelpers.addLog('AUTH', 'PASSWORD', `User ${user.username} changed their password`);
+    (await dbHelpers.updateUserPassword(user.userId, newHash));
+    (await dbHelpers.deleteOtherSessions(user.userId, user.sessionToken));
+    (await dbHelpers.addLog('AUTH', 'PASSWORD', `User ${user.username} changed their password`));
     return { success: true, message: 'Password changed successfully' };
   });
 
@@ -276,8 +276,8 @@ export async function authRoutes(app: FastifyInstance) {
     if (Object.keys(updates).length === 0) {
       return reply.code(400).send({ success: false, error: 'No fields to update' });
     }
-    dbHelpers.updateUser(user.userId, updates);
-    dbHelpers.addLog('AUTH', 'PROFILE', `User ${user.username} updated their profile`, JSON.stringify(updates));
+    (await dbHelpers.updateUser(user.userId, updates));
+    (await dbHelpers.addLog('AUTH', 'PROFILE', `User ${user.username} updated their profile`, JSON.stringify(updates)));
     return { success: true, message: 'Profile updated successfully' };
   });
 }

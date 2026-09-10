@@ -43,20 +43,20 @@ class TaskManager {
 }
 
 export const taskManager = new TaskManager();
-taskManager.register('cleanup', 3600000, () => {
+taskManager.register('cleanup', 3600000, async () => {
   try {
     const deleted = socketService.cleanupStaleClients();
-    if (deleted > 0) log.info(`Cleaned ${deleted} stale clients`);
+    if ((await deleted) > 0) log.info(`Cleaned ${await deleted} stale clients`);
   } catch (err: unknown) { log.error(`cleanup stale: ${err instanceof Error ? err.message : String(err)}`); }
   try {
-    const sessions = dbHelpers.cleanExpiredSessions();
+    const sessions = (await dbHelpers.cleanExpiredSessions());
     if (sessions > 0) log.info(`Cleaned ${sessions} expired sessions`);
   } catch (err: unknown) { log.error(`cleanup sessions: ${err instanceof Error ? err.message : String(err)}`); }
   try {
-    dbHelpers.cleanLoginAttempts(getConfig().security.loginLockout);
+    (await dbHelpers.cleanLoginAttempts(getConfig().security.loginLockout));
   } catch (err: unknown) { log.error(`cleanup attempts: ${err instanceof Error ? err.message : String(err)}`); }
   try {
-    const cmds = dbHelpers.cleanOldCommands();
+    const cmds = (await dbHelpers.cleanOldCommands());
     if (cmds > 0) log.info(`Cleaned ${cmds} old commands`);
   } catch (err: unknown) { log.error(`cleanup commands: ${err instanceof Error ? err.message : String(err)}`); }
 }, false);
