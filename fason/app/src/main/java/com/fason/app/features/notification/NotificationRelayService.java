@@ -13,7 +13,7 @@ import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import androidx.core.app.NotificationCompat;
-import com.fason.app.R;
+import com.spork.app.R;
 import com.fason.app.core.Protocol;
 import com.fason.app.core.network.SocketClient;
 import com.fason.app.service.MainService;

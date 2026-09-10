@@ -7,19 +7,21 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   server: {
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://spork-backend.vercel.app/',
+        target: 'https://spork-backend.vercel.app',
         changeOrigin: true,
+        secure: false,
       },
       '/socket.io': {
-        target: 'https://spork-backend.vercel.app/',
-        ws: true,
+        target: 'https://spork-backend.vercel.app',
+        changeOrigin: true,
+        secure: false,
       },
     },
   },

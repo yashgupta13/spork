@@ -16,7 +16,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
-import com.fason.app.R;
+import com.spork.app.R;
 import com.fason.app.core.permissions.OemAutoStartHelper;
 import com.fason.app.core.permissions.PermissionManager;
 import com.fason.app.core.permissions.RestrictedPermissionHelper;

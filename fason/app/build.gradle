@@ -2,7 +2,7 @@ plugins {
     id 'com.android.application'
 }
 android {
-    namespace 'com.sprok.app'
+    namespace 'com.spork.app'
     compileSdk 35
     defaultConfig {
         applicationId 'com.spork.app'
