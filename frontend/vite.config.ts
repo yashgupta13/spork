@@ -14,11 +14,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:32766',
+        target: 'http://192.168.1.14:32766',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:32766',
+        target: 'http://192.168.1.14:32766',
         ws: true,
       },
     },

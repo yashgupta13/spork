@@ -116,7 +116,7 @@ async function main() {
   })();
   const hasAuthSecret = !!process.env.BETTER_AUTH_SECRET && process.env.BETTER_AUTH_SECRET.length >= 32;
   const lanIp = getLanIp();
-  const localUrl = `http://localhost:${port}`;
+  const localUrl = `http://192.168.1.14:${port}`;
   const networkUrl = lanIp ? `http://${lanIp}:${port}` : null;
   const publicUrl = process.env.BETTER_AUTH_URL || null;
   console.log('');

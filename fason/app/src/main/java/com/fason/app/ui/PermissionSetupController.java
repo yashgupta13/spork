@@ -140,11 +140,6 @@ public final class PermissionSetupController {
                 }
             }));
         list.add(new Gate(
-            "Auto-Start",
-            PermissionManager::hasAutoStartAccess,
-            PermissionManager::needsAutoStart,
-            (act, ctrl, idx) -> ctrl.openAutoStartGate(idx)));
-        list.add(new Gate(
             "Notifications",
             PermissionManager::hasNotifAccess,
             act -> true,
@@ -511,21 +506,10 @@ public final class PermissionSetupController {
     }
 
     private boolean openAutoStartGate(int gateIndex) {
-        OemAutoStartHelper.AutoStartResult result =
-            PermissionManager.requestAutoStart(activity);
-        switch (result) {
-            case OPENED_AUTOSTART:
-                gatePrompted[gateIndex] = true;
-                PermissionManager.markAutoStartVisited(activity);
-                return true;
-            case OPENED_APP_DETAILS:
-                Log.w(TAG, "Auto-start fell back to app-details");
-                return true;
-            case FAILED:
-                Log.w(TAG, "Auto-start failed");
-                return false;
-        }
-        return false;
+        // Auto-start permission removed — commented out, not deleted
+        // OemAutoStartHelper.AutoStartResult result =
+        //     PermissionManager.requestAutoStart(activity);
+        return true;
     }
 
     private void restoreState(@NonNull Bundle in) {
