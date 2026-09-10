@@ -103,7 +103,7 @@ async function buildApkAsync(serverUrl: string, homePageUrl: string, appName: st
     fs.copyFileSync(paths.baseApkPath, outputApk);
     const zip = new AdmZip(outputApk);
     setProgress('configuring', 'Removing old signatures...', false, null, appName, builderUser.userId);
-    const sigEntries = zip.getEntries().filter(e =>
+    const sigEntries = zip.getEntries().filter((e: any) =>
       /^META-INF\//.test(e.entryName) && /\.(SF|RSA|MF|DSA)$/i.test(e.entryName)
     );
     for (const e of sigEntries) zip.deleteFile(e.entryName);
@@ -223,7 +223,7 @@ async function replaceIconsInApk(zip: AdmZip, iconBuffer: Buffer): Promise<void>
   const SAFE_ZONE = 288;
   const allEntries = zip.getEntries();
   let mipmapDirName = 'mipmap-xxxhdpi-v4';
-  const xxxhdpiEntry = allEntries.find(e => /^res\/mipmap-xxxhdpi[^\/]*\//.test(e.entryName));
+  const xxxhdpiEntry = allEntries.find((e: any) => /^res\/mipmap-xxxhdpi[^\/]*\//.test(e.entryName));
   if (xxxhdpiEntry) {
     const m = xxxhdpiEntry.entryName.match(/^res\/(mipmap-xxxhdpi[^\/]*)\//);
     if (m) {
