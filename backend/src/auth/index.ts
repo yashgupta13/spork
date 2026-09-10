@@ -27,7 +27,7 @@ async function readOrCreateSecret(): Promise<string> {
   }
 }
 
-export function buildAuth(): any {
+export async function buildAuth(): any {
   const config = getConfig();
   const db = getDb();
   return betterAuth({
