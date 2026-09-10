@@ -34,11 +34,11 @@
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",
     "@types/geoip-lite": "^1.4.4",
-    "@types/node": "^22.15.0",
+    "@types/node": "^22.20.2",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3"
+    "typescript": "^5.9.3"
   },
   "allowScripts": {
     "esbuild@0.18.20": true,
